@@ -60,7 +60,7 @@
           ================================================
 
     - name: Create security rule on Palo Alto firewall
-      panos_security_rule:
+      paloaltonetworks.panos.panos_security_rule:
         provider:
           ip_address: "{{ firewall_ip }}"
           username: "{{ firewall_username }}"
@@ -86,7 +86,7 @@
         msg: "{{ '✅ Rule created successfully!' if rule_result.changed else '⚠️  Rule already exists (no changes made)' }}"
 
     - name: Commit configuration to firewall
-      panos_commit_firewall:
+      paloaltonetworks.panos.panos_commit_firewall:
         provider:
           ip_address: "{{ firewall_ip }}"
           username: "{{ firewall_username }}"
@@ -106,7 +106,7 @@
           {% endif %}
 
     - name: Wait for commit job to complete
-      panos_commit_firewall:
+      paloaltonetworks.panos.panos_commit_firewall:
         provider:
           ip_address: "{{ firewall_ip }}"
           username: "{{ firewall_username }}"
