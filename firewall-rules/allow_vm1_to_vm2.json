@@ -1,5 +1,5 @@
 {
-  "rule_name": "Allow-VM1-to-VM2-Web",
+  "rule_name": "Allow-access-to-Web",
   "description": "GitOps Demo - Allow user01workstation to access web01application nginx server",
   "source_zone": ["trust"],
   "destination_zone": ["untrust"],
