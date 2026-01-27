@@ -1,0 +1,222 @@
+---
+# Ansible Playbook for Palo Alto Firewall Rule Deployment
+# GitOps Demo - Deploy rule to allow VM1 → VM2 traffic
+
+- name: Deploy Firewall Rule to Palo Alto NGFW
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  
+  vars:
+    # Firewall connection details
+    firewall_ip: "{{ lookup('env', 'PA_FIREWALL_IP') }}"
+    firewall_username: "{{ lookup('env', 'PA_USERNAME') | default('admin', true) }}"
+    firewall_password: "{{ lookup('env', 'PA_PASSWORD') }}"
+    
+    # Network configuration
+    vm1_ip: "172.19.1.5"
+    vm2_ip: "172.19.2.5"
+    trust_zone: "trust"
+    dmz_zone: "dmz"
+    
+    # Rule file location
+    rule_file: "{{ rule_file | default('firewall-rules/allow_vm1_to_vm2.json') }}"
+
+  tasks:
+    - name: Verify firewall connectivity
+      uri:
+        url: "https://{{ firewall_ip }}/api/?type=op&cmd=<show><system><info></info></system></show>"
+        method: GET
+        user: "{{ firewall_username }}"
+        password: "{{ firewall_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+      register: firewall_status
+      ignore_errors: yes
+
+    - name: Display firewall connection status
+      debug:
+        msg: "{{ '✅ Firewall is reachable' if firewall_status.status == 200 else '❌ Cannot reach firewall' }}"
+
+    - name: Load firewall rule from JSON file
+      set_fact:
+        fw_rule: "{{ lookup('file', rule_file) | from_json }}"
+
+    - name: Display rule details
+      debug:
+        msg: |
+          ================================================
+          🔥 Deploying Firewall Rule
+          ================================================
+          Rule Name: {{ fw_rule.rule_name }}
+          Description: {{ fw_rule.description }}
+          Source Zone: {{ fw_rule.source_zone | join(', ') }}
+          Destination Zone: {{ fw_rule.destination_zone | join(', ') }}
+          Source IP: {{ fw_rule.source_address | join(', ') }}
+          Destination IP: {{ fw_rule.destination_address | join(', ') }}
+          Application: {{ fw_rule.application | join(', ') }}
+          Service: {{ fw_rule.service | join(', ') }}
+          Action: {{ fw_rule.action | upper }}
+          ================================================
+
+    - name: Create security rule on Palo Alto firewall
+      panos_security_rule:
+        provider:
+          ip_address: "{{ firewall_ip }}"
+          username: "{{ firewall_username }}"
+          password: "{{ firewall_password }}"
+        rule_name: "{{ fw_rule.rule_name }}"
+        description: "{{ fw_rule.description }}"
+        source_zone: "{{ fw_rule.source_zone }}"
+        destination_zone: "{{ fw_rule.destination_zone }}"
+        source_ip: "{{ fw_rule.source_address }}"
+        destination_ip: "{{ fw_rule.destination_address }}"
+        application: "{{ fw_rule.application }}"
+        service: "{{ fw_rule.service }}"
+        action: "{{ fw_rule.action }}"
+        log_start: "{{ fw_rule.log_at_session_start | default(true) }}"
+        log_end: "{{ fw_rule.log_at_session_end | default(true) }}"
+        tag: "{{ fw_rule.tag | default([]) }}"
+        location: "{{ fw_rule.position | default('top') }}"
+        state: present
+      register: rule_result
+
+    - name: Display rule creation result
+      debug:
+        msg: "{{ '✅ Rule created successfully!' if rule_result.changed else '⚠️  Rule already exists (no changes made)' }}"
+
+    - name: Commit configuration to firewall
+      panos_commit_firewall:
+        provider:
+          ip_address: "{{ firewall_ip }}"
+          username: "{{ firewall_username }}"
+          password: "{{ firewall_password }}"
+        description: "GitOps deployment - {{ fw_rule.rule_name }} - {{ ansible_date_time.iso8601 }}"
+      when: rule_result.changed
+      register: commit_result
+
+    - name: Display commit result
+      debug:
+        msg: |
+          {% if commit_result.changed %}
+          ✅ Configuration committed successfully!
+          Commit ID: {{ commit_result.jobid | default('N/A') }}
+          {% else %}
+          ℹ️  No commit needed (no changes were made)
+          {% endif %}
+
+    - name: Wait for commit job to complete
+      panos_commit_firewall:
+        provider:
+          ip_address: "{{ firewall_ip }}"
+          username: "{{ firewall_username }}"
+          password: "{{ firewall_password }}"
+      when: commit_result.changed
+      retries: 10
+      delay: 10
+      register: commit_status
+      until: commit_status is succeeded
+
+    - name: Verify rule was created
+      uri:
+        url: "https://{{ firewall_ip }}/api/?type=config&action=get&xpath=/config/devices/entry[@name='localhost.localdomain']/vsys/entry[@name='vsys1']/rulebase/security/rules/entry[@name='{{ fw_rule.rule_name }}']"
+        method: GET
+        user: "{{ firewall_username }}"
+        password: "{{ firewall_password }}"
+        force_basic_auth: yes
+        validate_certs: no
+      register: rule_verification
+      ignore_errors: yes
+
+    - name: Display verification result
+      debug:
+        msg: "{{ '✅ Rule verified in firewall configuration' if rule_verification.status == 200 else '⚠️  Could not verify rule' }}"
+
+    - name: Generate deployment report
+      copy:
+        content: |
+          ================================================================
+          FIREWALL RULE DEPLOYMENT REPORT
+          ================================================================
+          
+          Deployment Information:
+          -----------------------
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Deployed By: GitLab CI/CD Pipeline
+          Firewall: {{ firewall_ip }}
+          
+          Rule Configuration:
+          -------------------
+          Rule Name: {{ fw_rule.rule_name }}
+          Description: {{ fw_rule.description }}
+          
+          Source Configuration:
+          - Zone: {{ fw_rule.source_zone | join(', ') }}
+          - Address: {{ fw_rule.source_address | join(', ') }}
+          
+          Destination Configuration:
+          - Zone: {{ fw_rule.destination_zone | join(', ') }}
+          - Address: {{ fw_rule.destination_address | join(', ') }}
+          
+          Traffic Configuration:
+          - Application: {{ fw_rule.application | join(', ') }}
+          - Service: {{ fw_rule.service | join(', ') }}
+          - Action: {{ fw_rule.action | upper }}
+          
+          Logging:
+          - Log at Session Start: {{ fw_rule.log_at_session_start | default(true) }}
+          - Log at Session End: {{ fw_rule.log_at_session_end | default(true) }}
+          
+          Deployment Status:
+          ------------------
+          Rule Creation: {{ 'SUCCESS' if rule_result.changed else 'ALREADY EXISTS' }}
+          Commit Status: {{ 'SUCCESS' if commit_result.changed else 'NO CHANGES' }}
+          Verification: {{ 'PASSED' if rule_verification.status == 200 else 'PENDING' }}
+          
+          Expected Outcome:
+          -----------------
+          Traffic from VM1 (172.19.1.5) to VM2 (172.19.2.5) should now be ALLOWED
+          
+          Next Steps:
+          -----------
+          1. Test connectivity from VM1: curl http://172.19.2.5
+          2. Check firewall traffic logs: Monitor → Logs → Traffic
+          3. Verify success page displays on VM2
+          
+          ================================================================
+        dest: "/tmp/deployment_report_{{ fw_rule.rule_name }}_{{ ansible_date_time.epoch }}.txt"
+      delegate_to: localhost
+
+    - name: Final deployment summary
+      debug:
+        msg: |
+          
+          ================================================================
+          ✅ DEPLOYMENT COMPLETE!
+          ================================================================
+          
+          The firewall rule '{{ fw_rule.rule_name }}' has been successfully deployed.
+          
+          Summary:
+          --------
+          • Rule Name: {{ fw_rule.rule_name }}
+          • Action: {{ fw_rule.action | upper }}
+          • Source: {{ fw_rule.source_address | join(', ') }} ({{ fw_rule.source_zone | join(', ') }})
+          • Destination: {{ fw_rule.destination_address | join(', ') }} ({{ fw_rule.destination_zone | join(', ') }})
+          
+          Test Command (from VM1):
+          ------------------------
+          curl http://172.19.2.5
+          
+          Expected Result:
+          ----------------
+          ✅ SUCCESS - HTTP 200 OK
+          🎉 Nginx welcome page should display
+          
+          Verification:
+          -------------
+          1. SSH to VM1: ssh azureuser@[VM1-PUBLIC-IP]
+          2. Run: curl http://172.19.2.5
+          3. Check firewall logs for 'allow' traffic
+          
+          ================================================================

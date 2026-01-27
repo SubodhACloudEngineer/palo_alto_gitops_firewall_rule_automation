@@ -1,0 +1,34 @@
+# Ansible Inventory for Palo Alto Firewall
+# GitOps Demo - Firewall Connection Details
+
+[panorama]
+# Leave empty - we're using direct firewall API
+
+[firewalls]
+localhost
+
+[firewalls:vars]
+ansible_connection=local
+ansible_python_interpreter=/usr/bin/python3
+
+[all:vars]
+# Firewall connection details
+# These should be set as environment variables or GitLab CI/CD variables
+# PA_FIREWALL_IP, PA_USERNAME, PA_PASSWORD
+
+# Network topology
+vm1_ip=172.19.1.5
+vm2_ip=172.19.2.5
+trust_zone=trust
+dmz_zone=dmz
+firewall_trust_ip=172.19.1.4
+firewall_dmz_ip=172.19.2.4
+
+# Resource details
+resource_group=rg-panorama-gitops-poc
+location=eastus
+vnet_name=fwVNET
+
+# Demo metadata
+demo_name="Palo Alto GitOps Demo"
+environment=production
