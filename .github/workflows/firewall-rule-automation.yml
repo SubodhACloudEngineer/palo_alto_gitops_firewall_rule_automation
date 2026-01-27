@@ -1,0 +1,461 @@
+name: Palo Alto Firewall Rule Automation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'firewall-rules/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'firewall-rules/**'
+  workflow_dispatch:
+    inputs:
+      rule_file:
+        description: 'Specific rule file to deploy (leave empty for all changed rules)'
+        required: false
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      dry_run:
+        description: 'Dry run mode (validation only)'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  ANSIBLE_FORCE_COLOR: "true"
+  ANSIBLE_HOST_KEY_CHECKING: "false"
+  PYTHON_VERSION: "3.11"
+  ANSIBLE_VERSION: "2.15"
+
+jobs:
+  # ============================================
+  # STAGE 1: Detect Changed Rules
+  # ============================================
+  detect-changes:
+    name: Detect Changed Rules
+    runs-on: ubuntu-latest
+    outputs:
+      rules_changed: ${{ steps.changes.outputs.rules }}
+      rule_files: ${{ steps.get-files.outputs.files }}
+      rule_count: ${{ steps.get-files.outputs.count }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for firewall rule changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            rules:
+              - 'firewall-rules/**/*.json'
+              - 'firewall-rules/**/*.yaml'
+              - 'firewall-rules/**/*.yml'
+
+      - name: Get changed rule files
+        id: get-files
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'firewall-rules/*.json' 'firewall-rules/*.yaml' 'firewall-rules/*.yml' | tr '\n' ' ')
+          else
+            FILES=$(git diff --name-only HEAD~1 -- 'firewall-rules/*.json' 'firewall-rules/*.yaml' 'firewall-rules/*.yml' | tr '\n' ' ')
+          fi
+
+          if [ -z "$FILES" ]; then
+            FILES=$(ls firewall-rules/*.json firewall-rules/*.yaml firewall-rules/*.yml 2>/dev/null | tr '\n' ' ')
+          fi
+
+          COUNT=$(echo "$FILES" | wc -w)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "Changed rule files: $FILES"
+          echo "Total count: $COUNT"
+
+  # ============================================
+  # STAGE 2: Schema Validation
+  # ============================================
+  validate-schema:
+    name: Validate JSON Schema
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install jsonschema pyyaml
+
+      - name: Validate firewall rules against schema
+        run: |
+          echo "Validating firewall rules against JSON schema..."
+          python scripts/validate_schema.py
+          echo "Schema validation completed successfully"
+
+  # ============================================
+  # STAGE 3: Security Policy Validation
+  # ============================================
+  validate-security:
+    name: Security Policy Check
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ipaddress pyyaml
+
+      - name: Run security policy validation
+        run: |
+          echo "Running security policy validation..."
+          python scripts/validate_security.py
+          echo "Security validation completed successfully"
+
+  # ============================================
+  # STAGE 4: IP Address and Network Validation
+  # ============================================
+  validate-network:
+    name: Network Configuration Check
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ipaddress netaddr pyyaml
+
+      - name: Validate network configurations
+        run: |
+          echo "Validating IP addresses and network configurations..."
+          python scripts/validate_network.py
+          echo "Network validation completed successfully"
+
+  # ============================================
+  # STAGE 5: Ansible Syntax Check
+  # ============================================
+  ansible-syntax:
+    name: Ansible Syntax Check
+    runs-on: ubuntu-latest
+    needs: [validate-schema, validate-security, validate-network]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}.* ansible-lint pan-os-python xmltodict
+
+      - name: Install Palo Alto Networks Ansible Collection
+        run: |
+          ansible-galaxy collection install paloaltonetworks.panos --force
+
+      - name: Run Ansible syntax check
+        run: |
+          echo "Checking Ansible playbook syntax..."
+          ansible-playbook playbooks/deploy_firewall_rule.yml --syntax-check
+          ansible-playbook ansible/site.yml --syntax-check
+          echo "Ansible syntax check passed"
+
+      - name: Run Ansible Lint
+        run: |
+          echo "Running Ansible lint..."
+          ansible-lint playbooks/ ansible/ --exclude=.github/ || true
+          echo "Ansible lint completed"
+        continue-on-error: true
+
+  # ============================================
+  # STAGE 6: Dry Run Deployment Test
+  # ============================================
+  dry-run:
+    name: Dry Run Deployment
+    runs-on: ubuntu-latest
+    needs: ansible-syntax
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}.* pan-os-python xmltodict requests
+
+      - name: Install Palo Alto Networks Ansible Collection
+        run: |
+          ansible-galaxy collection install paloaltonetworks.panos --force
+
+      - name: Execute dry-run deployment
+        run: |
+          echo "Executing dry-run deployment..."
+          echo "================================================"
+          echo "DRY RUN MODE - No actual changes will be made"
+          echo "================================================"
+
+          for rule_file in firewall-rules/*.json; do
+            echo ""
+            echo "Processing: $rule_file"
+            echo "----------------------------------------"
+            python scripts/dry_run.py "$rule_file"
+          done
+
+          echo ""
+          echo "================================================"
+          echo "Dry run completed successfully"
+          echo "================================================"
+
+      - name: Generate deployment preview
+        run: |
+          echo "## Deployment Preview" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for rule_file in firewall-rules/*.json; do
+            rule_name=$(python -c "import json; print(json.load(open('$rule_file'))['rule_name'])")
+            action=$(python -c "import json; print(json.load(open('$rule_file'))['action'].upper())")
+            src=$(python -c "import json; print(', '.join(json.load(open('$rule_file'))['source_address']))")
+            dst=$(python -c "import json; print(', '.join(json.load(open('$rule_file'))['destination_address']))")
+
+            echo "### Rule: $rule_name" >> $GITHUB_STEP_SUMMARY
+            echo "- **Action:** $action" >> $GITHUB_STEP_SUMMARY
+            echo "- **Source:** $src" >> $GITHUB_STEP_SUMMARY
+            echo "- **Destination:** $dst" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+
+  # ============================================
+  # STAGE 7: Integration Tests
+  # ============================================
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: dry-run
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov jsonschema pyyaml ipaddress
+
+      - name: Run integration tests
+        run: |
+          echo "Running integration tests..."
+          python -m pytest tests/ -v --tb=short
+          echo "Integration tests completed"
+
+  # ============================================
+  # STAGE 8: Deploy to Staging
+  # ============================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging-firewall.internal
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}.* pan-os-python xmltodict requests
+
+      - name: Install Palo Alto Networks Ansible Collection
+        run: |
+          ansible-galaxy collection install paloaltonetworks.panos --force
+
+      - name: Deploy firewall rules to staging
+        env:
+          PA_FIREWALL_IP: ${{ secrets.STAGING_FIREWALL_IP }}
+          PA_USERNAME: ${{ secrets.PA_USERNAME }}
+          PA_PASSWORD: ${{ secrets.PA_PASSWORD }}
+          PA_API_KEY: ${{ secrets.PA_API_KEY }}
+        run: |
+          echo "Deploying firewall rules to STAGING environment..."
+          echo "================================================"
+          echo "Target Firewall: $PA_FIREWALL_IP"
+          echo "Deployment Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "================================================"
+
+          ansible-playbook ansible/site.yml \
+            -e "target_environment=staging" \
+            -e "firewall_ip=$PA_FIREWALL_IP" \
+            -e "ansible_user=$PA_USERNAME" \
+            -e "ansible_password=$PA_PASSWORD" \
+            -e "deploy_rules=true" \
+            -v
+
+      - name: Verify staging deployment
+        run: |
+          echo "Verifying staging deployment..."
+          python scripts/verify_deployment.py staging
+          echo "Staging deployment verified"
+
+      - name: Generate staging deployment report
+        run: |
+          python scripts/generate_report.py staging >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 9: Deploy to Production
+  # ============================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'))
+    environment:
+      name: production
+      url: https://firewall.internal
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible and dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}.* pan-os-python xmltodict requests
+
+      - name: Install Palo Alto Networks Ansible Collection
+        run: |
+          ansible-galaxy collection install paloaltonetworks.panos --force
+
+      - name: Deploy firewall rules to production
+        env:
+          PA_FIREWALL_IP: ${{ secrets.PROD_FIREWALL_IP }}
+          PA_USERNAME: ${{ secrets.PA_USERNAME }}
+          PA_PASSWORD: ${{ secrets.PA_PASSWORD }}
+          PA_API_KEY: ${{ secrets.PA_API_KEY }}
+        run: |
+          echo "Deploying firewall rules to PRODUCTION environment..."
+          echo "================================================"
+          echo "Target Firewall: $PA_FIREWALL_IP"
+          echo "Deployment Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Deployed By: ${{ github.actor }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "================================================"
+
+          ansible-playbook ansible/site.yml \
+            -e "target_environment=production" \
+            -e "firewall_ip=$PA_FIREWALL_IP" \
+            -e "ansible_user=$PA_USERNAME" \
+            -e "ansible_password=$PA_PASSWORD" \
+            -e "deploy_rules=true" \
+            -v
+
+      - name: Verify production deployment
+        run: |
+          echo "Verifying production deployment..."
+          python scripts/verify_deployment.py production
+          echo "Production deployment verified"
+
+      - name: Generate production deployment report
+        run: |
+          python scripts/generate_report.py production >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 10: Post-Deployment Notifications
+  # ============================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Notify on success
+        if: needs.deploy-production.result == 'success'
+        run: |
+          echo "## Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Firewall rules have been successfully deployed to production." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: needs.deploy-production.result == 'failure'
+        run: |
+          echo "## Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Firewall rule deployment to production has failed." >> $GITHUB_STEP_SUMMARY
+          echo "Please check the workflow logs for details." >> $GITHUB_STEP_SUMMARY
+
+      - name: Create deployment issue on failure
+        if: needs.deploy-production.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Firewall Deployment Failed - ${new Date().toISOString().split('T')[0]}`,
+              body: `## Deployment Failure Report\n\n**Workflow:** ${context.workflow}\n**Run ID:** ${context.runId}\n**Triggered by:** ${context.actor}\n**Commit:** ${context.sha}\n\nPlease investigate the failed deployment.`,
+              labels: ['deployment-failure', 'firewall']
+            })

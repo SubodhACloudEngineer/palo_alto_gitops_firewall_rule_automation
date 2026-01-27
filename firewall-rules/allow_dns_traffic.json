@@ -1,0 +1,24 @@
+{
+  "rule_name": "Allow-Internal-DNS",
+  "description": "Allow all internal hosts to access internal DNS servers for name resolution",
+  "source_zone": ["trust", "dmz"],
+  "destination_zone": ["trust"],
+  "source_address": ["172.19.0.0/16"],
+  "destination_address": ["172.19.10.2", "172.19.10.3"],
+  "application": ["dns"],
+  "service": ["udp-53", "tcp-53"],
+  "action": "allow",
+  "log_at_session_start": false,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": ["gitops-managed", "dns", "infrastructure"],
+  "metadata": {
+    "created_by": "GitHub Actions",
+    "project": "Core Infrastructure",
+    "environment": "production",
+    "ticket_id": "CHG-2024-0001",
+    "requested_by": "Network Team",
+    "approved_by": "Network Security",
+    "business_justification": "Core DNS resolution for all internal services"
+  }
+}

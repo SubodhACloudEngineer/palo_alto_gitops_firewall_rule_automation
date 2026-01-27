@@ -1,0 +1,184 @@
+name: PR Validation - Firewall Rules
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'firewall-rules/**'
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ============================================
+  # Validate PR Changes
+  # ============================================
+  validate:
+    name: Validate Firewall Rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'firewall-rules/*.json' 'firewall-rules/*.yaml' | tr '\n' ',' | sed 's/,$//')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Changed files: $FILES"
+
+      - name: Validate JSON Schema
+        run: python scripts/validate_schema.py
+
+      - name: Validate Security Policies
+        run: python scripts/validate_security.py
+
+      - name: Validate Network Configuration
+        run: python scripts/validate_network.py
+
+      - name: Run dry-run deployment
+        run: |
+          for rule_file in firewall-rules/*.json; do
+            python scripts/dry_run.py "$rule_file"
+          done
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
+  # ============================================
+  # Generate PR Comment with Details
+  # ============================================
+  comment:
+    name: PR Summary Comment
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Generate rule summary
+        id: summary
+        run: |
+          echo "## Firewall Rule Changes Summary" > pr_comment.md
+          echo "" >> pr_comment.md
+          echo "### Changed Rules:" >> pr_comment.md
+
+          for rule_file in firewall-rules/*.json; do
+            if [ -f "$rule_file" ]; then
+              rule_name=$(python -c "import json; print(json.load(open('$rule_file'))['rule_name'])" 2>/dev/null || echo "Unknown")
+              action=$(python -c "import json; print(json.load(open('$rule_file'))['action'].upper())" 2>/dev/null || echo "Unknown")
+              src_zone=$(python -c "import json; print(', '.join(json.load(open('$rule_file')).get('source_zone', [])))" 2>/dev/null || echo "Unknown")
+              dst_zone=$(python -c "import json; print(', '.join(json.load(open('$rule_file')).get('destination_zone', [])))" 2>/dev/null || echo "Unknown")
+              src=$(python -c "import json; print(', '.join(json.load(open('$rule_file')).get('source_address', [])))" 2>/dev/null || echo "Unknown")
+              dst=$(python -c "import json; print(', '.join(json.load(open('$rule_file')).get('destination_address', [])))" 2>/dev/null || echo "Unknown")
+
+              echo "" >> pr_comment.md
+              echo "#### \`$rule_name\`" >> pr_comment.md
+              echo "| Property | Value |" >> pr_comment.md
+              echo "|----------|-------|" >> pr_comment.md
+              echo "| **File** | \`$(basename $rule_file)\` |" >> pr_comment.md
+              echo "| **Action** | $action |" >> pr_comment.md
+              echo "| **Source Zone** | $src_zone |" >> pr_comment.md
+              echo "| **Destination Zone** | $dst_zone |" >> pr_comment.md
+              echo "| **Source Address** | $src |" >> pr_comment.md
+              echo "| **Destination Address** | $dst |" >> pr_comment.md
+            fi
+          done
+
+          echo "" >> pr_comment.md
+          echo "---" >> pr_comment.md
+          echo "### Validation Status" >> pr_comment.md
+          echo "- Schema Validation: Passed" >> pr_comment.md
+          echo "- Security Policy Check: Passed" >> pr_comment.md
+          echo "- Network Validation: Passed" >> pr_comment.md
+          echo "- Dry Run: Successful" >> pr_comment.md
+          echo "" >> pr_comment.md
+          echo "_This PR is ready for review and merge._" >> pr_comment.md
+
+          cat pr_comment.md
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('pr_comment.md', 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ============================================
+  # Security Scan
+  # ============================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install bandit safety
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r scripts/ -f json -o bandit-report.json || true
+          bandit -r scripts/ -f txt || true
+
+      - name: Check for dangerous patterns
+        run: |
+          echo "Scanning for dangerous patterns in firewall rules..."
+
+          for rule_file in firewall-rules/*.json; do
+            echo "Checking $rule_file..."
+
+            # Check for overly permissive rules
+            if grep -q '"any"' "$rule_file"; then
+              echo "WARNING: Rule contains 'any' - please review for security"
+            fi
+
+            # Check for allow-all patterns
+            if grep -q '"0.0.0.0/0"' "$rule_file"; then
+              echo "WARNING: Rule contains 0.0.0.0/0 - review if intentional"
+            fi
+          done
+
+          echo "Security scan completed"

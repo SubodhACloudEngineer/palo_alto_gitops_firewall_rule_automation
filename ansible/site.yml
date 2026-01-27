@@ -1,0 +1,117 @@
+---
+# Ansible Site Playbook for Palo Alto Firewall Rule Deployment
+# GitOps-driven security rule automation
+
+- name: Deploy Firewall Rules via GitOps
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    # Environment configuration
+    target_environment: "{{ target_environment | default('staging') }}"
+    deploy_rules: "{{ deploy_rules | default(true) | bool }}"
+    dry_run: "{{ dry_run | default(false) | bool }}"
+
+    # Firewall connection
+    firewall_ip: "{{ firewall_ip | default(lookup('env', 'PA_FIREWALL_IP')) }}"
+    firewall_username: "{{ ansible_user | default(lookup('env', 'PA_USERNAME')) | default('admin', true) }}"
+    firewall_password: "{{ ansible_password | default(lookup('env', 'PA_PASSWORD')) }}"
+    firewall_api_key: "{{ lookup('env', 'PA_API_KEY') | default('') }}"
+
+    # Paths
+    rules_directory: "{{ playbook_dir }}/../firewall-rules"
+    reports_directory: "/tmp/firewall-reports"
+
+    # Provider configuration for panos modules
+    panos_provider:
+      ip_address: "{{ firewall_ip }}"
+      username: "{{ firewall_username }}"
+      password: "{{ firewall_password }}"
+
+  pre_tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          PALO ALTO FIREWALL RULE DEPLOYMENT
+          ============================================================
+          Environment:    {{ target_environment | upper }}
+          Firewall:       {{ firewall_ip | default('Not configured') }}
+          Dry Run:        {{ dry_run }}
+          Deploy Rules:   {{ deploy_rules }}
+          Timestamp:      {{ ansible_date_time.iso8601 }}
+          ============================================================
+
+    - name: Create reports directory
+      ansible.builtin.file:
+        path: "{{ reports_directory }}"
+        state: directory
+        mode: '0755'
+
+    - name: Find all rule files
+      ansible.builtin.find:
+        paths: "{{ rules_directory }}"
+        patterns:
+          - "*.json"
+          - "*.yaml"
+          - "*.yml"
+        file_type: file
+      register: rule_files
+
+    - name: Display found rules
+      ansible.builtin.debug:
+        msg: "Found {{ rule_files.files | length }} rule file(s) to process"
+
+  tasks:
+    - name: Process firewall rules
+      when: deploy_rules | bool
+      block:
+        - name: Load and validate rule files
+          ansible.builtin.include_tasks: tasks/process_rule.yml
+          loop: "{{ rule_files.files }}"
+          loop_control:
+            loop_var: rule_file
+            label: "{{ rule_file.path | basename }}"
+
+    - name: Commit firewall configuration
+      when:
+        - deploy_rules | bool
+        - not dry_run | bool
+        - firewall_ip is defined
+        - firewall_ip | length > 0
+      block:
+        - name: Commit configuration changes
+          paloaltonetworks.panos.panos_commit_firewall:
+            provider: "{{ panos_provider }}"
+            description: "GitOps deployment - {{ target_environment }} - {{ ansible_date_time.iso8601 }}"
+          register: commit_result
+          ignore_errors: true
+
+        - name: Display commit result
+          ansible.builtin.debug:
+            msg: "Commit {{ 'successful' if commit_result is succeeded else 'failed or skipped' }}"
+
+  post_tasks:
+    - name: Generate deployment report
+      ansible.builtin.template:
+        src: templates/deployment_report.md.j2
+        dest: "{{ reports_directory }}/deployment_{{ target_environment }}_{{ ansible_date_time.epoch }}.md"
+        mode: '0644'
+
+    - name: Display deployment summary
+      ansible.builtin.debug:
+        msg: |
+          ============================================================
+          DEPLOYMENT COMPLETE
+          ============================================================
+          Environment:  {{ target_environment | upper }}
+          Rules:        {{ rule_files.files | length }} processed
+          Status:       {{ 'SUCCESS' if ansible_failed_result is not defined else 'FAILED' }}
+          Report:       {{ reports_directory }}/deployment_{{ target_environment }}_{{ ansible_date_time.epoch }}.md
+          ============================================================
+
+  handlers:
+    - name: Reload firewall configuration
+      ansible.builtin.debug:
+        msg: "Configuration reload triggered"

@@ -1,0 +1,243 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://company.com/schemas/firewall-rule.json",
+  "title": "Palo Alto Firewall Security Rule",
+  "description": "Schema for Palo Alto Networks firewall security rule definitions",
+  "type": "object",
+  "required": [
+    "rule_name",
+    "source_zone",
+    "destination_zone",
+    "source_address",
+    "destination_address",
+    "action"
+  ],
+  "properties": {
+    "rule_name": {
+      "type": "string",
+      "description": "Unique name for the firewall rule",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]*$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the rule purpose",
+      "maxLength": 1024
+    },
+    "source_zone": {
+      "type": "array",
+      "description": "Source security zone(s)",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "destination_zone": {
+      "type": "array",
+      "description": "Destination security zone(s)",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_address": {
+      "type": "array",
+      "description": "Source IP addresses, networks, or address objects",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "destination_address": {
+      "type": "array",
+      "description": "Destination IP addresses, networks, or address objects",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_user": {
+      "type": "array",
+      "description": "Source user(s) or user group(s)",
+      "items": {
+        "type": "string"
+      },
+      "default": ["any"]
+    },
+    "application": {
+      "type": "array",
+      "description": "Application(s) to match",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": ["any"]
+    },
+    "service": {
+      "type": "array",
+      "description": "Service(s) or port(s) to match",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": ["application-default"]
+    },
+    "action": {
+      "type": "string",
+      "description": "Action to take when rule matches",
+      "enum": ["allow", "deny", "drop", "reset-client", "reset-server", "reset-both"]
+    },
+    "log_at_session_start": {
+      "type": "boolean",
+      "description": "Log at the start of the session",
+      "default": false
+    },
+    "log_at_session_end": {
+      "type": "boolean",
+      "description": "Log at the end of the session",
+      "default": true
+    },
+    "log_forwarding": {
+      "type": "string",
+      "description": "Log forwarding profile name"
+    },
+    "tag": {
+      "type": "array",
+      "description": "Tags associated with this rule",
+      "items": {
+        "type": "string"
+      }
+    },
+    "negate_source": {
+      "type": "boolean",
+      "description": "Negate the source address",
+      "default": false
+    },
+    "negate_destination": {
+      "type": "boolean",
+      "description": "Negate the destination address",
+      "default": false
+    },
+    "disabled": {
+      "type": "boolean",
+      "description": "Whether the rule is disabled",
+      "default": false
+    },
+    "schedule": {
+      "type": "string",
+      "description": "Schedule object for time-based rules"
+    },
+    "icmp_unreachable": {
+      "type": "boolean",
+      "description": "Send ICMP unreachable for deny actions",
+      "default": false
+    },
+    "disable_server_response_inspection": {
+      "type": "boolean",
+      "description": "Disable server response inspection",
+      "default": false
+    },
+    "group_profile": {
+      "type": "string",
+      "description": "Security profile group"
+    },
+    "antivirus_profile": {
+      "type": "string",
+      "description": "Antivirus security profile"
+    },
+    "vulnerability_profile": {
+      "type": "string",
+      "description": "Vulnerability protection profile"
+    },
+    "spyware_profile": {
+      "type": "string",
+      "description": "Anti-spyware profile"
+    },
+    "url_filtering_profile": {
+      "type": "string",
+      "description": "URL filtering profile"
+    },
+    "file_blocking_profile": {
+      "type": "string",
+      "description": "File blocking profile"
+    },
+    "wildfire_profile": {
+      "type": "string",
+      "description": "WildFire analysis profile"
+    },
+    "data_filtering_profile": {
+      "type": "string",
+      "description": "Data filtering profile"
+    },
+    "position": {
+      "type": "string",
+      "description": "Position in the rulebase",
+      "enum": ["top", "bottom", "before", "after"],
+      "default": "bottom"
+    },
+    "position_reference": {
+      "type": "string",
+      "description": "Reference rule name for before/after positioning"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata for tracking and documentation",
+      "properties": {
+        "created_by": {
+          "type": "string",
+          "description": "User or system that created the rule"
+        },
+        "created_date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date the rule was created"
+        },
+        "modified_by": {
+          "type": "string",
+          "description": "User or system that last modified the rule"
+        },
+        "modified_date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date the rule was last modified"
+        },
+        "ticket_id": {
+          "type": "string",
+          "description": "Associated ticket or change request ID"
+        },
+        "requested_by": {
+          "type": "string",
+          "description": "Person who requested the rule"
+        },
+        "approved_by": {
+          "type": "string",
+          "description": "Person who approved the rule"
+        },
+        "expiration_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Date when the rule should be reviewed or removed"
+        },
+        "business_justification": {
+          "type": "string",
+          "description": "Business reason for the rule"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["production", "staging", "development", "all"],
+          "description": "Target environment for the rule"
+        },
+        "project": {
+          "type": "string",
+          "description": "Associated project name"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

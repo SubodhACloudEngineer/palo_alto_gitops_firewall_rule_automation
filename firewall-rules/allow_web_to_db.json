@@ -1,0 +1,25 @@
+{
+  "rule_name": "Allow-WebTier-to-Database",
+  "description": "Allow web application servers to access database tier for application connectivity",
+  "source_zone": ["dmz"],
+  "destination_zone": ["trust"],
+  "source_address": ["172.19.2.0/24"],
+  "destination_address": ["172.19.3.10", "172.19.3.11"],
+  "application": ["mysql", "postgresql"],
+  "service": ["tcp-3306", "tcp-5432"],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": ["gitops-managed", "database-access", "production"],
+  "vulnerability_profile": "strict",
+  "metadata": {
+    "created_by": "GitHub Actions",
+    "project": "Enterprise Application Stack",
+    "environment": "production",
+    "ticket_id": "CHG-2024-0542",
+    "requested_by": "DevOps Team",
+    "approved_by": "Security Team",
+    "business_justification": "Web application requires database connectivity for user data storage"
+  }
+}

@@ -1,0 +1,68 @@
+---
+# Palo Alto Security Rule Deployment Role
+
+- name: Validate rule parameters
+  ansible.builtin.assert:
+    that:
+      - rule_name is defined
+      - source_zone is defined
+      - destination_zone is defined
+      - source_address is defined
+      - destination_address is defined
+      - action is defined
+    fail_msg: "Missing required rule parameters"
+    success_msg: "Rule parameters validated: {{ rule_name }}"
+
+- name: Display rule configuration
+  ansible.builtin.debug:
+    msg: |
+      Deploying Security Rule: {{ rule_name }}
+      ================================================
+      Description: {{ description | default('No description') }}
+      Source Zone: {{ source_zone | join(', ') }}
+      Destination Zone: {{ destination_zone | join(', ') }}
+      Source Address: {{ source_address | join(', ') }}
+      Destination Address: {{ destination_address | join(', ') }}
+      Application: {{ application | default(['any']) | join(', ') }}
+      Service: {{ service | default(['application-default']) | join(', ') }}
+      Action: {{ action | upper }}
+      ================================================
+
+- name: Check if rule already exists
+  paloaltonetworks.panos.panos_security_rule:
+    provider: "{{ panos_provider }}"
+    rule_name: "{{ rule_name }}"
+    state: present
+  check_mode: true
+  register: rule_check
+  ignore_errors: true
+
+- name: Create or update security rule
+  paloaltonetworks.panos.panos_security_rule:
+    provider: "{{ panos_provider }}"
+    rule_name: "{{ rule_name }}"
+    description: "{{ description | default('Deployed via GitOps automation') }}"
+    source_zone: "{{ source_zone }}"
+    destination_zone: "{{ destination_zone }}"
+    source_ip: "{{ source_address }}"
+    destination_ip: "{{ destination_address }}"
+    source_user: "{{ source_user | default(['any']) }}"
+    application: "{{ application | default(['any']) }}"
+    service: "{{ service | default(['application-default']) }}"
+    action: "{{ action }}"
+    log_start: "{{ log_at_session_start | default(true) }}"
+    log_end: "{{ log_at_session_end | default(true) }}"
+    tag_name: "{{ tag | default([]) }}"
+    negate_source: "{{ negate_source | default(false) }}"
+    negate_destination: "{{ negate_destination | default(false) }}"
+    disabled: "{{ disabled | default(false) }}"
+    location: "{{ position | default('bottom') }}"
+    state: present
+  register: rule_result
+  when: not ansible_check_mode
+
+- name: Report rule deployment result
+  ansible.builtin.debug:
+    msg: >-
+      Rule '{{ rule_name }}' deployment:
+      {{ 'CHANGED - Rule was created or modified' if rule_result.changed | default(false) else 'OK - No changes needed' }}

@@ -1,0 +1,31 @@
+# Python dependencies for Palo Alto GitOps Firewall Automation
+
+# Schema validation
+jsonschema>=4.17.0
+
+# YAML support
+pyyaml>=6.0
+
+# Network validation
+ipaddress
+netaddr>=0.8.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Ansible integration
+ansible>=8.0.0
+ansible-lint>=6.17.0
+
+# PAN-OS Python SDK
+pan-os-python>=1.11.0
+
+# HTTP requests
+requests>=2.31.0
+
+# XML processing
+xmltodict>=0.13.0
+
+# Additional utilities
+python-dateutil>=2.8.0

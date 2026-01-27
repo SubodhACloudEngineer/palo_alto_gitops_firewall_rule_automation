@@ -1,0 +1,25 @@
+{
+  "rule_name": "Allow-Backup-Server-Access",
+  "description": "Allow backup server to access all internal hosts for scheduled backups",
+  "source_zone": ["management"],
+  "destination_zone": ["trust", "dmz"],
+  "source_address": ["172.19.10.100"],
+  "destination_address": ["172.19.1.0/24", "172.19.2.0/24", "172.19.3.0/24"],
+  "application": ["ssh", "rsync"],
+  "service": ["tcp-22", "tcp-873"],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "schedule": "backup-window",
+  "position": "top",
+  "tag": ["gitops-managed", "backup", "scheduled"],
+  "metadata": {
+    "created_by": "GitHub Actions",
+    "project": "Disaster Recovery",
+    "environment": "production",
+    "ticket_id": "CHG-2024-0621",
+    "requested_by": "Infrastructure Team",
+    "approved_by": "IT Operations Manager",
+    "business_justification": "Veeam backup server requires SSH/rsync access for nightly backups"
+  }
+}
