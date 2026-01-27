@@ -1,0 +1,30 @@
+# Ansible Lint Configuration
+
+skip_list:
+  - yaml[line-length]
+  - no-handler
+  - risky-shell-pipe
+  - command-instead-of-module
+
+warn_list:
+  - experimental
+
+exclude_paths:
+  - .github/
+  - tests/
+  - .git/
+
+enable_list:
+  - empty-string-compare
+  - no-log-password
+  - no-same-owner
+
+offline: false
+
+use_default_rules: true
+
+parseable: true
+
+quiet: false
+
+verbosity: 1

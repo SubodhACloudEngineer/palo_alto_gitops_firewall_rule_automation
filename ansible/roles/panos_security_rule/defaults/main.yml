@@ -1,0 +1,37 @@
+---
+# Default variables for panos_security_rule role
+
+# Rule defaults
+action: "allow"
+log_at_session_start: true
+log_at_session_end: true
+disabled: false
+position: "bottom"
+negate_source: false
+negate_destination: false
+
+# Default zone names
+default_source_zone: "trust"
+default_destination_zone: "untrust"
+
+# Default applications and services
+default_application:
+  - "any"
+
+default_service:
+  - "application-default"
+
+# Default source user
+default_source_user:
+  - "any"
+
+# Tags to apply by default
+default_tags:
+  - "gitops-managed"
+  - "automated"
+
+# Provider configuration
+panos_provider:
+  ip_address: "{{ firewall_ip | default(lookup('env', 'PA_FIREWALL_IP')) }}"
+  username: "{{ firewall_username | default(lookup('env', 'PA_USERNAME')) | default('admin', true) }}"
+  password: "{{ firewall_password | default(lookup('env', 'PA_PASSWORD')) }}"

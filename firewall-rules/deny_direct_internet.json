@@ -1,0 +1,24 @@
+{
+  "rule_name": "Deny-Direct-Internet-Access",
+  "description": "Block direct internet access from internal hosts - must use proxy",
+  "source_zone": ["trust"],
+  "destination_zone": ["untrust"],
+  "source_address": ["172.19.1.0/24", "172.19.3.0/24"],
+  "destination_address": ["any"],
+  "application": ["web-browsing", "ssl"],
+  "service": ["tcp-80", "tcp-443"],
+  "action": "deny",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "bottom",
+  "tag": ["gitops-managed", "security-policy", "compliance"],
+  "metadata": {
+    "created_by": "GitHub Actions",
+    "project": "Security Compliance",
+    "environment": "production",
+    "ticket_id": "SEC-2024-0127",
+    "requested_by": "Security Team",
+    "approved_by": "CISO",
+    "business_justification": "Enforce proxy usage for all outbound web traffic per security policy"
+  }
+}

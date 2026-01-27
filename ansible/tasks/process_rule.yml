@@ -1,0 +1,95 @@
+---
+# Task file to process a single firewall rule
+
+- name: Load rule from file
+  ansible.builtin.slurp:
+    src: "{{ rule_file.path }}"
+  register: rule_content
+
+- name: Parse rule data
+  ansible.builtin.set_fact:
+    rule_data: "{{ rule_content.content | b64decode | from_json }}"
+
+- name: Display rule details
+  ansible.builtin.debug:
+    msg: |
+      Processing Rule: {{ rule_data.rule_name }}
+      ----------------------------------------
+      Description: {{ rule_data.description | default('No description') }}
+      Action: {{ rule_data.action | upper }}
+      Source: {{ rule_data.source_address | join(', ') }} ({{ rule_data.source_zone | join(', ') }})
+      Destination: {{ rule_data.destination_address | join(', ') }} ({{ rule_data.destination_zone | join(', ') }})
+      Application: {{ rule_data.application | default(['any']) | join(', ') }}
+      Service: {{ rule_data.service | default(['application-default']) | join(', ') }}
+
+- name: Validate rule has required fields
+  ansible.builtin.assert:
+    that:
+      - rule_data.rule_name is defined
+      - rule_data.source_zone is defined
+      - rule_data.destination_zone is defined
+      - rule_data.source_address is defined
+      - rule_data.destination_address is defined
+      - rule_data.action is defined
+    fail_msg: "Rule {{ rule_file.path | basename }} is missing required fields"
+    success_msg: "Rule {{ rule_data.rule_name }} validation passed"
+
+- name: Create security rule on firewall
+  when:
+    - not dry_run | bool
+    - firewall_ip is defined
+    - firewall_ip | length > 0
+  paloaltonetworks.panos.panos_security_rule:
+    provider: "{{ panos_provider }}"
+    rule_name: "{{ rule_data.rule_name }}"
+    description: "{{ rule_data.description | default('Deployed via GitOps') }}"
+    source_zone: "{{ rule_data.source_zone }}"
+    destination_zone: "{{ rule_data.destination_zone }}"
+    source_ip: "{{ rule_data.source_address }}"
+    destination_ip: "{{ rule_data.destination_address }}"
+    source_user: "{{ rule_data.source_user | default(['any']) }}"
+    application: "{{ rule_data.application | default(['any']) }}"
+    service: "{{ rule_data.service | default(['application-default']) }}"
+    action: "{{ rule_data.action }}"
+    log_start: "{{ rule_data.log_at_session_start | default(true) }}"
+    log_end: "{{ rule_data.log_at_session_end | default(true) }}"
+    log_setting: "{{ rule_data.log_forwarding | default(omit) }}"
+    group_profile: "{{ rule_data.group_profile | default(omit) }}"
+    antivirus: "{{ rule_data.antivirus_profile | default(omit) }}"
+    vulnerability: "{{ rule_data.vulnerability_profile | default(omit) }}"
+    spyware: "{{ rule_data.spyware_profile | default(omit) }}"
+    url_filtering: "{{ rule_data.url_filtering_profile | default(omit) }}"
+    file_blocking: "{{ rule_data.file_blocking_profile | default(omit) }}"
+    wildfire_analysis: "{{ rule_data.wildfire_profile | default(omit) }}"
+    data_filtering: "{{ rule_data.data_filtering_profile | default(omit) }}"
+    tag_name: "{{ rule_data.tag | default([]) }}"
+    negate_source: "{{ rule_data.negate_source | default(false) }}"
+    negate_destination: "{{ rule_data.negate_destination | default(false) }}"
+    disabled: "{{ rule_data.disabled | default(false) }}"
+    schedule: "{{ rule_data.schedule | default(omit) }}"
+    icmp_unreachable: "{{ rule_data.icmp_unreachable | default(false) }}"
+    disable_server_response_inspection: "{{ rule_data.disable_server_response_inspection | default(false) }}"
+    location: "{{ rule_data.position | default('bottom') }}"
+    state: present
+  register: rule_result
+
+- name: Display rule creation result (actual deployment)
+  when:
+    - not dry_run | bool
+    - firewall_ip is defined
+    - firewall_ip | length > 0
+  ansible.builtin.debug:
+    msg: "Rule '{{ rule_data.rule_name }}' {{ 'created/updated' if rule_result.changed else 'already exists (no changes)' }}"
+
+- name: Display dry-run result
+  when: dry_run | bool or firewall_ip is not defined or firewall_ip | length == 0
+  ansible.builtin.debug:
+    msg: |
+      [DRY RUN] Rule '{{ rule_data.rule_name }}' would be deployed:
+        - Source: {{ rule_data.source_address | join(', ') }}
+        - Destination: {{ rule_data.destination_address | join(', ') }}
+        - Action: {{ rule_data.action | upper }}
+
+- name: Add rule to deployment summary
+  ansible.builtin.set_fact:
+    deployed_rules: "{{ deployed_rules | default([]) + [rule_data.rule_name] }}"

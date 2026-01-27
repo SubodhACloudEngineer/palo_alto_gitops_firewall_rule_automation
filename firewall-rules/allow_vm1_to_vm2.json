@@ -13,7 +13,7 @@
   "position": "top",
   "tag": ["gitops-demo", "auto-deployed"],
   "metadata": {
-    "created_by": "GitLab CI/CD",
+    "created_by": "GitHub Actions",
     "project": "Palo Alto GitOps Demo",
     "environment": "production",
     "vm1_name": "user01workstation",

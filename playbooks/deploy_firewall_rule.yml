@@ -142,7 +142,7 @@
           Deployment Information:
           -----------------------
           Timestamp: {{ ansible_date_time.iso8601 }}
-          Deployed By: GitLab CI/CD Pipeline
+          Deployed By: GitHub Actions Pipeline
           Firewall: {{ firewall_ip }}
           
           Rule Configuration:

@@ -1,0 +1,24 @@
+{
+  "rule_name": "Allow-Monitoring-Access",
+  "description": "Allow monitoring servers to collect metrics from all internal hosts via SNMP and agent protocols",
+  "source_zone": ["management"],
+  "destination_zone": ["trust", "dmz"],
+  "source_address": ["172.19.10.50", "172.19.10.51"],
+  "destination_address": ["172.19.1.0/24", "172.19.2.0/24", "172.19.3.0/24"],
+  "application": ["snmp", "snmp-trap", "icmp"],
+  "service": ["udp-161", "udp-162", "tcp-9100", "tcp-9090"],
+  "action": "allow",
+  "log_at_session_start": false,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": ["gitops-managed", "monitoring", "infrastructure"],
+  "metadata": {
+    "created_by": "GitHub Actions",
+    "project": "Infrastructure Monitoring",
+    "environment": "production",
+    "ticket_id": "CHG-2024-0389",
+    "requested_by": "SRE Team",
+    "approved_by": "Network Security",
+    "business_justification": "Prometheus and Nagios require access to collect system metrics"
+  }
+}

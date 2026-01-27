@@ -1,0 +1,41 @@
+---
+# Palo Alto Configuration Commit Role
+
+- name: Display commit information
+  ansible.builtin.debug:
+    msg: |
+      Committing Configuration
+      ========================
+      Firewall: {{ panos_provider.ip_address }}
+      Description: {{ commit_description | default('GitOps automated commit') }}
+      Timestamp: {{ ansible_date_time.iso8601 }}
+
+- name: Commit firewall configuration
+  paloaltonetworks.panos.panos_commit_firewall:
+    provider: "{{ panos_provider }}"
+    description: "{{ commit_description | default('GitOps deployment - ' + ansible_date_time.iso8601) }}"
+  register: commit_result
+  retries: 3
+  delay: 10
+  until: commit_result is succeeded
+
+- name: Wait for commit to complete
+  ansible.builtin.pause:
+    seconds: 5
+  when: commit_result.changed
+
+- name: Report commit result
+  ansible.builtin.debug:
+    msg: |
+      Commit Result
+      =============
+      Status: {{ 'SUCCESS' if commit_result is succeeded else 'FAILED' }}
+      Changed: {{ commit_result.changed }}
+      Job ID: {{ commit_result.jobid | default('N/A') }}
+
+- name: Verify commit success
+  ansible.builtin.assert:
+    that:
+      - commit_result is succeeded
+    fail_msg: "Firewall commit failed"
+    success_msg: "Firewall commit completed successfully"
