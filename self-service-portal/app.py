@@ -122,6 +122,15 @@ class NetBoxClient:
         data = self.get('/api/dcim/devices/', params)
         return data.get('results', [])
 
+    def get_virtual_machines(self, site=None, status='active'):
+        """Get virtual machines from NetBox"""
+        params = {'status': status}
+        if site:
+            params['site'] = site
+
+        data = self.get('/api/virtualization/virtual-machines/', params)
+        return data.get('results', [])
+
     def get_ip_addresses(self, status='active'):
         """Get IP addresses from NetBox"""
         params = {'status': status}
@@ -256,6 +265,15 @@ def submit_request(service_id):
         else:
             form_data[field_name] = request.form.get(field_name)
 
+    # For firewall rules, also collect manual entry fields
+    if service_id == 'palo_alto_firewall_rule':
+        manual_fields = [
+            'source_vm_manual', 'source_ip_manual', 'source_subnet_manual',
+            'destination_vm_manual', 'destination_ip_manual', 'destination_subnet_manual'
+        ]
+        for field_name in manual_fields:
+            form_data[field_name] = request.form.get(field_name, '')
+
     # Special handling for firewall rules
     if service_id == 'palo_alto_firewall_rule':
         return handle_firewall_rule_request(service, requester, form_data)
@@ -296,19 +314,28 @@ def handle_firewall_rule_request(service, requester, form_data):
     source_type = form_data.get('source_type', 'vm')
     dest_type = form_data.get('destination_type', 'vm')
 
+    # Helper to get value from dropdown or manual entry
+    def get_field_value(field_name, field_type):
+        dropdown_value = form_data.get(field_name, '')
+        # Check if manual entry was selected
+        if dropdown_value == '__manual__':
+            manual_value = form_data.get(f'{field_name}_manual', '').strip()
+            return manual_value
+        return dropdown_value
+
     if source_type == 'vm':
-        source_address = form_data.get('source_vm', '').split('/')[0]  # Remove /32
+        source_address = get_field_value('source_vm', 'vm').split('/')[0]  # Remove /32
     elif source_type == 'ip':
-        source_address = form_data.get('source_ip', '').split('/')[0]
+        source_address = get_field_value('source_ip', 'ip').split('/')[0]
     else:
-        source_address = form_data.get('source_subnet', '')
+        source_address = get_field_value('source_subnet', 'subnet')
 
     if dest_type == 'vm':
-        dest_address = form_data.get('destination_vm', '').split('/')[0]
+        dest_address = get_field_value('destination_vm', 'vm').split('/')[0]
     elif dest_type == 'ip':
-        dest_address = form_data.get('destination_ip', '').split('/')[0]
+        dest_address = get_field_value('destination_ip', 'ip').split('/')[0]
     else:
-        dest_address = form_data.get('destination_subnet', '')
+        dest_address = get_field_value('destination_subnet', 'subnet')
 
     # Check for duplicate rule
     is_duplicate, existing_rule = netbox.check_duplicate_rule(source_address, dest_address)
@@ -644,28 +671,78 @@ def execute_provisioning(service_request):
 
 @app.route('/api/netbox/devices')
 def api_netbox_devices():
-    """Get devices (VMs) from NetBox for dropdown"""
+    """Get devices and virtual machines from NetBox for dropdown"""
     site = request.args.get('site')
     role = request.args.get('role')
 
+    # Fetch both devices and virtual machines
     devices = netbox.get_devices(site=site, role=role)
+    virtual_machines = netbox.get_virtual_machines(site=site)
 
     # Check for errors
     if netbox.last_error:
         return jsonify({'error': netbox.last_error, 'options': []})
 
-    # Format for dropdown
+    # Format for dropdown - combining devices and VMs
     options = []
+    seen_names = set()
+
+    # Process devices
     for device in devices:
+        name = device.get('name', '')
+        if name in seen_names:
+            continue
+        seen_names.add(name)
+
         primary_ip = device.get('primary_ip4')
         if primary_ip:
             ip_address = primary_ip['address']
             options.append({
                 'value': ip_address,
-                'label': f"{device['name']} ({ip_address})",
-                'device_name': device['name'],
-                'ip_address': ip_address
+                'label': f"{name} ({ip_address})",
+                'device_name': name,
+                'ip_address': ip_address,
+                'type': 'device'
             })
+        else:
+            # Include devices without IP - user can still select by name
+            options.append({
+                'value': name,
+                'label': f"{name} (No IP assigned)",
+                'device_name': name,
+                'ip_address': None,
+                'type': 'device'
+            })
+
+    # Process virtual machines
+    for vm in virtual_machines:
+        name = vm.get('name', '')
+        if name in seen_names:
+            continue
+        seen_names.add(name)
+
+        primary_ip = vm.get('primary_ip4')
+        if primary_ip:
+            ip_address = primary_ip['address']
+            options.append({
+                'value': ip_address,
+                'label': f"{name} ({ip_address})",
+                'device_name': name,
+                'ip_address': ip_address,
+                'type': 'vm'
+            })
+        else:
+            # Include VMs without IP
+            options.append({
+                'value': name,
+                'label': f"{name} (No IP assigned)",
+                'device_name': name,
+                'ip_address': None,
+                'type': 'vm'
+            })
+
+    # Sort by label for easier selection
+    options.sort(key=lambda x: x['label'].lower())
 
     return jsonify({'options': options})
 
