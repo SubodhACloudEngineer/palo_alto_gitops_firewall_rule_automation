@@ -1,0 +1,176 @@
+{
+  "service_id": "palo_alto_firewall_rule",
+  "service_name": "Palo Alto Firewall Rule",
+  "description": "Create firewall rules to allow or deny traffic between VMs",
+  "category": "Security",
+  "icon": "🔥",
+  "playbook": "/home/subodhkashyap/palo-alto-gitops-demo/playbooks/deploy_firewall_rule.yml",
+  "git_enabled": true,
+  "git_repo_path": "/home/subodhkashyap/palo-alto-gitops-demo",
+  "git_rules_path": "firewall-rules",
+  "netbox_integration": true,
+  "fields": [
+    {
+      "name": "rule_name",
+      "label": "Rule Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., Allow-VM1-to-VM2-Web",
+      "help": "Descriptive name for this firewall rule"
+    },
+    {
+      "name": "source_type",
+      "label": "Source Type",
+      "type": "radio",
+      "required": true,
+      "options": [
+        {"value": "vm", "label": "Virtual Machine"},
+        {"value": "ip", "label": "IP Address"},
+        {"value": "subnet", "label": "Subnet"}
+      ],
+      "default": "vm",
+      "help": "Select what type of source you want to configure"
+    },
+    {
+      "name": "source_vm",
+      "label": "Source VM",
+      "type": "netbox_select",
+      "required": false,
+      "netbox_endpoint": "/api/dcim/devices/",
+      "netbox_filters": {"site": "azure-eastus", "role": "server,workstation"},
+      "display_field": "name",
+      "value_field": "primary_ip4.address",
+      "help": "Select the source virtual machine from NetBox",
+      "conditional": {"field": "source_type", "value": "vm"}
+    },
+    {
+      "name": "source_ip",
+      "label": "Source IP Address",
+      "type": "netbox_select",
+      "required": false,
+      "netbox_endpoint": "/api/ipam/ip-addresses/",
+      "display_field": "address",
+      "value_field": "address",
+      "help": "Select source IP address from NetBox",
+      "conditional": {"field": "source_type", "value": "ip"}
+    },
+    {
+      "name": "source_subnet",
+      "label": "Source Subnet",
+      "type": "netbox_select",
+      "required": false,
+      "netbox_endpoint": "/api/ipam/prefixes/",
+      "display_field": "prefix",
+      "value_field": "prefix",
+      "help": "Select source subnet from NetBox",
+      "conditional": {"field": "source_type", "value": "subnet"}
+    },
+    {
+      "name": "source_zone",
+      "label": "Source Zone",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"value": "trust", "label": "Trust"},
+        {"value": "dmz", "label": "DMZ"},
+        {"value": "untrust", "label": "Untrust"}
+      ],
+      "help": "Security zone of the source"
+    },
+    {
+      "name": "destination_type",
+      "label": "Destination Type",
+      "type": "radio",
+      "required": true,
+      "options": [
+        {"value": "vm", "label": "Virtual Machine"},
+        {"value": "ip", "label": "IP Address"},
+        {"value": "subnet", "label": "Subnet"}
+      ],
+      "default": "vm",
+      "help": "Select what type of destination you want to configure"
+    },
+    {
+      "name": "destination_vm",
+      "label": "Destination VM",
+      "type": "netbox_select",
+      "required": false,
+      "netbox_endpoint": "/api/dcim/devices/",
+      "netbox_filters": {"site": "azure-eastus", "role": "server,workstation"},
+      "display_field": "name",
+      "value_field": "primary_ip4.address",
+      "help": "Select the destination virtual machine from NetBox",
+      "conditional": {"field": "destination_type", "value": "vm"}
+    },
+    {
+      "name": "destination_ip",
+      "label": "Destination IP Address",
+      "type": "netbox_select",
+      "required": false,
+      "netbox_endpoint": "/api/ipam/ip-addresses/",
+      "display_field": "address",
+      "value_field": "address",
+      "help": "Select destination IP address from NetBox",
+      "conditional": {"field": "destination_type", "value": "ip"}
+    },
+    {
+      "name": "destination_subnet",
+      "label": "Destination Subnet",
+      "type": "netbox_select",
+      "required": false,
+      "netbox_endpoint": "/api/ipam/prefixes/",
+      "display_field": "prefix",
+      "value_field": "prefix",
+      "help": "Select destination subnet from NetBox",
+      "conditional": {"field": "destination_type", "value": "subnet"}
+    },
+    {
+      "name": "destination_zone",
+      "label": "Destination Zone",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"value": "trust", "label": "Trust"},
+        {"value": "dmz", "label": "DMZ"},
+        {"value": "untrust", "label": "Untrust"}
+      ],
+      "help": "Security zone of the destination"
+    },
+    {
+      "name": "service",
+      "label": "Service / Application",
+      "type": "checkbox",
+      "required": true,
+      "options": [
+        {"value": "web-browsing", "label": "HTTP (web-browsing)", "checked": true},
+        {"value": "ssl", "label": "HTTPS (ssl)", "checked": true},
+        {"value": "ssh", "label": "SSH"},
+        {"value": "dns", "label": "DNS"},
+        {"value": "ping", "label": "Ping"},
+        {"value": "any", "label": "Any (all traffic)"}
+      ],
+      "help": "Select which services/applications to allow"
+    },
+    {
+      "name": "action",
+      "label": "Action",
+      "type": "radio",
+      "required": true,
+      "options": [
+        {"value": "allow", "label": "✅ Allow"},
+        {"value": "deny", "label": "❌ Deny"}
+      ],
+      "default": "allow",
+      "help": "Allow or deny this traffic"
+    },
+    {
+      "name": "description",
+      "label": "Business Justification",
+      "type": "textarea",
+      "required": true,
+      "rows": 4,
+      "placeholder": "Explain why this firewall rule is needed, what service it enables, and who approved it...",
+      "help": "Required for audit and compliance purposes"
+    }
+  ]
+}

@@ -44,7 +44,7 @@ AZURE_CONFIG = {
 # NetBox Configuration
 NETBOX_CONFIG = {
     'url': 'http://localhost:8000',
-    'token': 'YOUR_NETBOX_TOKEN_HERE',  # Same token as Palo Alto sync
+    'token': 'cb8da4ed137116561635c752a5c685753c246cae',  # Same token as Palo Alto sync
     'verify_ssl': False
 }
 
