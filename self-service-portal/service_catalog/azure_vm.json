@@ -1,0 +1,65 @@
+{
+  "service_id": "azure_vm",
+  "service_name": "Azure Virtual Machine",
+  "description": "Provision virtual machines on Microsoft Azure",
+  "category": "Cloud",
+  "icon": "☁️",
+  "playbook": "/home/subodhkashyap/azure-automation/provision_vm.yml",
+  "fields": [
+    {
+      "name": "vm_name",
+      "label": "VM Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., web-server-01"
+    },
+    {
+      "name": "vm_size",
+      "label": "VM Size",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"value": "Standard_B2s", "label": "Standard B2s (2 vCPU, 4GB RAM)"},
+        {"value": "Standard_D2s_v3", "label": "Standard D2s v3 (2 vCPU, 8GB RAM)"},
+        {"value": "Standard_D4s_v3", "label": "Standard D4s v3 (4 vCPU, 16GB RAM)"}
+      ]
+    },
+    {
+      "name": "os_type",
+      "label": "Operating System",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"value": "ubuntu_22_04", "label": "Ubuntu 22.04 LTS"},
+        {"value": "windows_server_2022", "label": "Windows Server 2022"},
+        {"value": "rhel_9", "label": "Red Hat Enterprise Linux 9"}
+      ]
+    },
+    {
+      "name": "resource_group",
+      "label": "Resource Group",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., prod-rg-eastus"
+    },
+    {
+      "name": "environment",
+      "label": "Environment",
+      "type": "radio",
+      "required": true,
+      "options": [
+        {"value": "dev", "label": "Development"},
+        {"value": "staging", "label": "Staging"},
+        {"value": "prod", "label": "Production"}
+      ]
+    },
+    {
+      "name": "description",
+      "label": "Business Justification",
+      "type": "textarea",
+      "required": true,
+      "rows": 4,
+      "placeholder": "Explain the purpose and requirements..."
+    }
+  ]
+}

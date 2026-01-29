@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>NTT DATA - Self-Service Infrastructure Portal</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            padding: 30px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .logo {
+            height: 50px;
+            width: auto;
+        }
+        .header-title {
+            color: white;
+        }
+        .header-title h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .header-title p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .header-links a {
+            margin-left: 15px;
+            padding: 10px 20px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        .header-links a:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .content {
+            padding: 40px;
+        }
+        .new-request-btn {
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 30px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .new-request-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 103, 177, 0.4);
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .status {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-pending { background-color: #FFA726; color: white; }
+        .status-running { background-color: #42A5F5; color: white; }
+        .status-automation { background-color: #42A5F5; color: white; }
+        .status-syncing { background-color: #26C6DA; color: white; }
+        .status-completed { background-color: #66BB6A; color: white; }
+        .status-failed { background-color: #EF5350; color: white; }
+        .status-timeout { background-color: #EF5350; color: white; }
+        .view-btn {
+            background-color: #0067B1;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+        .view-btn:hover {
+            background-color: #004A8F;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #999;
+        }
+        .empty-state svg {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 30px;
+            opacity: 0.2;
+        }
+        .empty-state h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        .empty-state p {
+            font-size: 16px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px 40px;
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+    <script>
+        // Auto-refresh every 3 seconds
+        setInterval(() => {
+            location.reload();
+        }, 3000);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NTT DATA" class="logo" onerror="this.src='{{ url_for('static', filename='images/logo.png') }}'">
+                <div class="header-title">
+                    <h1>Self-Service Infrastructure Portal</h1>
+                    <p>Network Automation & Infrastructure as Code</p>
+                </div>
+            </div>
+            <div class="header-links">
+                <a href="{{ netbox_url }}" target="_blank">📊 Netbox CMDB</a>
+            </div>
+        </div>
+        
+        <div class="content">
+            <a href="/new_request" class="new-request-btn">➕ New Service Request</a>
+            
+            <h2>Service Requests</h2>
+            
+            {% if requests %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Request ID</th>
+                        <th>Type</th>
+                        <th>Timestamp</th>
+                        <th>Requester</th>
+                        <th>Details</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for req in requests %}
+                <tr>
+                    <td><strong>{{ req.id }}</strong></td>
+                    <td>{{ req.type }}</td>
+                    <td>{{ req.timestamp }}</td>
+                    <td>{{ req.requester }}</td>
+                    <td>
+                        {% if req.service_id == 'vlan_provisioning' %}
+                            <strong>VLAN {{ req.details.vlan_id }}</strong> - {{ req.details.vlan_name }}<br>
+                            <small style="color: #666;">Devices: {{ req.details.devices|join(', ') }}</small>
+                        {% elif req.service_id == 'azure_vm' %}
+                            <strong>VM:</strong> {{ req.details.vm_name }}<br>
+                            <small style="color: #666;">{{ req.details.vm_size }} | {{ req.details.environment }}</small>
+                        {% else %}
+                            {{ req.details | tojson }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status status-{{ req.status.lower().replace(' ', '-').replace('(', '').replace(')', '') }}">
+                            {{ req.status }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="/request_details/{{ req.id }}" class="view-btn">View Details</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3>No service requests yet</h3>
+                <p>Create your first infrastructure provisioning request</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="footer">
+            © 2025 NTT DATA | Network Automation Platform | Powered by Ansible & Containerlab
+        </div>
+    </div>
+</body>
+</html>
