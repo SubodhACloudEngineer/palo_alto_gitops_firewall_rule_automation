@@ -23,6 +23,22 @@ app = Flask(__name__)
 # CONFIGURATION
 # ============================================
 
+# Load .env file if it exists
+def load_env_file():
+    """Load environment variables from .env file"""
+    env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if os.path.exists(env_file):
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    # Only set if not already in environment
+                    if key.strip() not in os.environ:
+                        os.environ[key.strip()] = value.strip().strip('"').strip("'")
+
+load_env_file()
+
 # Base paths - relative to the project root
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORTAL_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,9 +46,10 @@ SERVICE_CATALOG_PATH = os.path.join(PORTAL_DIR, "service_catalog")
 FIREWALL_RULES_PATH = os.path.join(BASE_DIR, "firewall-rules")
 PLAYBOOKS_PATH = os.path.join(BASE_DIR, "playbooks")
 
-# NetBox Configuration (can be overridden via environment variables)
+# NetBox Configuration
+# Priority: Environment variable > .env file > None
 NETBOX_URL = os.environ.get("NETBOX_URL", "http://localhost:8000")
-NETBOX_TOKEN = os.environ.get("NETBOX_TOKEN", "")
+NETBOX_TOKEN = os.environ.get("NETBOX_TOKEN")
 
 # Git configuration for firewall rules
 GIT_REPO_PATH = BASE_DIR
@@ -54,22 +71,45 @@ class NetBoxClient:
     def __init__(self, url, token):
         self.url = url.rstrip('/')
         self.token = token
+        self.configured = bool(token)
+        self.last_error = None
         self.headers = {
-            'Authorization': f'Token {token}',
+            'Authorization': f'Token {token}' if token else '',
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         }
 
     def get(self, endpoint, params=None):
         """Make GET request to NetBox"""
+        self.last_error = None
+
+        if not self.configured:
+            self.last_error = "NetBox token not configured. Please set NETBOX_TOKEN in .env file."
+            print(f"NetBox API error: {self.last_error}")
+            return {'results': [], 'count': 0, 'error': self.last_error}
+
         url = f"{self.url}{endpoint}"
         try:
             response = requests.get(url, headers=self.headers, params=params, verify=False, timeout=10)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                self.last_error = "Authentication failed. Check your NETBOX_TOKEN in .env file."
+            elif e.response.status_code == 404:
+                self.last_error = f"NetBox endpoint not found: {endpoint}"
+            else:
+                self.last_error = f"HTTP {e.response.status_code}: {str(e)}"
+            print(f"NetBox API error: {self.last_error}")
+            return {'results': [], 'count': 0, 'error': self.last_error}
+        except requests.exceptions.ConnectionError:
+            self.last_error = f"Cannot connect to NetBox at {self.url}. Is NetBox running?"
+            print(f"NetBox API error: {self.last_error}")
+            return {'results': [], 'count': 0, 'error': self.last_error}
         except Exception as e:
-            print(f"NetBox API error: {e}")
-            return {'results': [], 'count': 0}
+            self.last_error = str(e)
+            print(f"NetBox API error: {self.last_error}")
+            return {'results': [], 'count': 0, 'error': self.last_error}
 
     def get_devices(self, site=None, role=None):
         """Get devices from NetBox"""
@@ -610,6 +650,10 @@ def api_netbox_devices():
 
     devices = netbox.get_devices(site=site, role=role)
 
+    # Check for errors
+    if netbox.last_error:
+        return jsonify({'error': netbox.last_error, 'options': []})
+
     # Format for dropdown
     options = []
     for device in devices:
@@ -623,13 +667,17 @@ def api_netbox_devices():
                 'ip_address': ip_address
             })
 
-    return jsonify(options)
+    return jsonify({'options': options})
 
 
 @app.route('/api/netbox/ip-addresses')
 def api_netbox_ip_addresses():
     """Get IP addresses from NetBox for dropdown"""
     ips = netbox.get_ip_addresses()
+
+    # Check for errors
+    if netbox.last_error:
+        return jsonify({'error': netbox.last_error, 'options': []})
 
     options = []
     for ip in ips:
@@ -639,13 +687,17 @@ def api_netbox_ip_addresses():
             'label': f"{ip['address']}" + (f" - {description}" if description else "")
         })
 
-    return jsonify(options)
+    return jsonify({'options': options})
 
 
 @app.route('/api/netbox/prefixes')
 def api_netbox_prefixes():
     """Get prefixes (subnets) from NetBox for dropdown"""
     prefixes = netbox.get_prefixes()
+
+    # Check for errors
+    if netbox.last_error:
+        return jsonify({'error': netbox.last_error, 'options': []})
 
     options = []
     for prefix in prefixes:
@@ -655,7 +707,7 @@ def api_netbox_prefixes():
             'label': f"{prefix['prefix']}" + (f" - {description}" if description else "")
         })
 
-    return jsonify(options)
+    return jsonify({'options': options})
 
 
 @app.route('/api/netbox/existing-rules')
