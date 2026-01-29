@@ -266,6 +266,34 @@
             margin-left: 8px;
             vertical-align: middle;
         }
+        .manual-entry-container {
+            display: none;
+            margin-top: 10px;
+        }
+        .manual-entry-container.visible {
+            display: block;
+        }
+        .manual-entry-container input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #FF9800;
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: #FFF8E1;
+        }
+        .manual-entry-container input:focus {
+            outline: none;
+            border-color: #F57C00;
+        }
+        .manual-entry-hint {
+            font-size: 11px;
+            color: #F57C00;
+            margin-top: 4px;
+        }
+        select option[value="__manual__"] {
+            color: #FF9800;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -356,7 +384,12 @@
                         <select id="source_vm" name="source_vm">
                             <option value="">Loading VMs from NetBox...</option>
                         </select>
-                        <div class="help-text">Select the source virtual machine</div>
+                        <div class="manual-entry-container" id="source_vm_manual_container">
+                            <input type="text" id="source_vm_manual" name="source_vm_manual"
+                                   placeholder="Enter VM name or IP address (e.g., 10.0.1.100 or my-server)">
+                            <div class="manual-entry-hint">Enter a valid IP address or hostname</div>
+                        </div>
+                        <div class="help-text">Select a VM from NetBox or enter manually</div>
                     </div>
 
                     <div class="form-group conditional-field" id="source-ip-field">
@@ -364,7 +397,12 @@
                         <select id="source_ip" name="source_ip">
                             <option value="">Loading IPs from NetBox...</option>
                         </select>
-                        <div class="help-text">Select the source IP address</div>
+                        <div class="manual-entry-container" id="source_ip_manual_container">
+                            <input type="text" id="source_ip_manual" name="source_ip_manual"
+                                   placeholder="Enter IP address (e.g., 10.0.1.100/32 or 192.168.1.50)">
+                            <div class="manual-entry-hint">Enter a valid IP address with optional CIDR notation</div>
+                        </div>
+                        <div class="help-text">Select an IP from NetBox or enter manually</div>
                     </div>
 
                     <div class="form-group conditional-field" id="source-subnet-field">
@@ -372,7 +410,12 @@
                         <select id="source_subnet" name="source_subnet">
                             <option value="">Loading subnets from NetBox...</option>
                         </select>
-                        <div class="help-text">Select the source subnet/prefix</div>
+                        <div class="manual-entry-container" id="source_subnet_manual_container">
+                            <input type="text" id="source_subnet_manual" name="source_subnet_manual"
+                                   placeholder="Enter subnet in CIDR notation (e.g., 10.0.1.0/24)">
+                            <div class="manual-entry-hint">Enter a valid subnet in CIDR notation</div>
+                        </div>
+                        <div class="help-text">Select a subnet from NetBox or enter manually</div>
                     </div>
 
                     <div class="form-group">
@@ -414,7 +457,12 @@
                         <select id="destination_vm" name="destination_vm">
                             <option value="">Loading VMs from NetBox...</option>
                         </select>
-                        <div class="help-text">Select the destination virtual machine</div>
+                        <div class="manual-entry-container" id="destination_vm_manual_container">
+                            <input type="text" id="destination_vm_manual" name="destination_vm_manual"
+                                   placeholder="Enter VM name or IP address (e.g., 10.0.1.100 or my-server)">
+                            <div class="manual-entry-hint">Enter a valid IP address or hostname</div>
+                        </div>
+                        <div class="help-text">Select a VM from NetBox or enter manually</div>
                     </div>
 
                     <div class="form-group conditional-field" id="dest-ip-field">
@@ -422,7 +470,12 @@
                         <select id="destination_ip" name="destination_ip">
                             <option value="">Loading IPs from NetBox...</option>
                         </select>
-                        <div class="help-text">Select the destination IP address</div>
+                        <div class="manual-entry-container" id="destination_ip_manual_container">
+                            <input type="text" id="destination_ip_manual" name="destination_ip_manual"
+                                   placeholder="Enter IP address (e.g., 10.0.1.100/32 or 192.168.1.50)">
+                            <div class="manual-entry-hint">Enter a valid IP address with optional CIDR notation</div>
+                        </div>
+                        <div class="help-text">Select an IP from NetBox or enter manually</div>
                     </div>
 
                     <div class="form-group conditional-field" id="dest-subnet-field">
@@ -430,7 +483,12 @@
                         <select id="destination_subnet" name="destination_subnet">
                             <option value="">Loading subnets from NetBox...</option>
                         </select>
-                        <div class="help-text">Select the destination subnet/prefix</div>
+                        <div class="manual-entry-container" id="destination_subnet_manual_container">
+                            <input type="text" id="destination_subnet_manual" name="destination_subnet_manual"
+                                   placeholder="Enter subnet in CIDR notation (e.g., 10.0.1.0/24)">
+                            <div class="manual-entry-hint">Enter a valid subnet in CIDR notation</div>
+                        </div>
+                        <div class="help-text">Select a subnet from NetBox or enter manually</div>
                     </div>
 
                     <div class="form-group">
@@ -524,6 +582,23 @@
             warningBox.classList.add('visible');
         }
 
+        // Setup manual entry toggle for a dropdown
+        function setupManualEntryToggle(selectId, manualContainerId) {
+            const select = document.getElementById(selectId);
+            const manualContainer = document.getElementById(manualContainerId);
+            const manualInput = manualContainer.querySelector('input');
+
+            select.addEventListener('change', function() {
+                if (this.value === '__manual__') {
+                    manualContainer.classList.add('visible');
+                    manualInput.focus();
+                } else {
+                    manualContainer.classList.remove('visible');
+                    manualInput.value = '';
+                }
+            });
+        }
+
         // Fetch VMs from NetBox
         function loadNetBoxDevices() {
             fetch('/api/netbox/devices')
@@ -535,28 +610,36 @@
                     // Check for errors
                     if (data.error) {
                         showNetBoxError(data.error);
-                        sourceSelect.innerHTML = '<option value="">NetBox not available</option>';
-                        destSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        sourceSelect.innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                        destSelect.innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                        setupManualEntryToggle('source_vm', 'source_vm_manual_container');
+                        setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
                         return;
                     }
 
                     const options = data.options || [];
-                    if (options.length === 0) {
-                        sourceSelect.innerHTML = '<option value="">No VMs found in NetBox</option>';
-                        destSelect.innerHTML = '<option value="">No VMs found in NetBox</option>';
-                        return;
+                    let optionsHtml = '<option value="">Select a VM</option>';
+
+                    if (options.length > 0) {
+                        optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
                     }
 
-                    const optionsHtml = '<option value="">Select a VM</option>' +
-                        options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                    // Always add manual entry option
+                    optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
 
                     sourceSelect.innerHTML = optionsHtml;
                     destSelect.innerHTML = optionsHtml;
+
+                    // Setup toggle for manual entry
+                    setupManualEntryToggle('source_vm', 'source_vm_manual_container');
+                    setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
                 })
                 .catch(error => {
                     console.error('Error loading devices:', error);
-                    document.getElementById('source_vm').innerHTML = '<option value="">Error loading VMs</option>';
-                    document.getElementById('destination_vm').innerHTML = '<option value="">Error loading VMs</option>';
+                    document.getElementById('source_vm').innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                    document.getElementById('destination_vm').innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                    setupManualEntryToggle('source_vm', 'source_vm_manual_container');
+                    setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
                 });
         }
 
@@ -571,28 +654,36 @@
                     // Check for errors
                     if (data.error) {
                         showNetBoxError(data.error);
-                        sourceSelect.innerHTML = '<option value="">NetBox not available</option>';
-                        destSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        sourceSelect.innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                        destSelect.innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                        setupManualEntryToggle('source_ip', 'source_ip_manual_container');
+                        setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
                         return;
                     }
 
                     const options = data.options || [];
-                    if (options.length === 0) {
-                        sourceSelect.innerHTML = '<option value="">No IPs found in NetBox</option>';
-                        destSelect.innerHTML = '<option value="">No IPs found in NetBox</option>';
-                        return;
+                    let optionsHtml = '<option value="">Select an IP</option>';
+
+                    if (options.length > 0) {
+                        optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
                     }
 
-                    const optionsHtml = '<option value="">Select an IP</option>' +
-                        options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                    // Always add manual entry option
+                    optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
 
                     sourceSelect.innerHTML = optionsHtml;
                     destSelect.innerHTML = optionsHtml;
+
+                    // Setup toggle for manual entry
+                    setupManualEntryToggle('source_ip', 'source_ip_manual_container');
+                    setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
                 })
                 .catch(error => {
                     console.error('Error loading IPs:', error);
-                    document.getElementById('source_ip').innerHTML = '<option value="">Error loading IPs</option>';
-                    document.getElementById('destination_ip').innerHTML = '<option value="">Error loading IPs</option>';
+                    document.getElementById('source_ip').innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                    document.getElementById('destination_ip').innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                    setupManualEntryToggle('source_ip', 'source_ip_manual_container');
+                    setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
                 });
         }
 
@@ -607,28 +698,36 @@
                     // Check for errors
                     if (data.error) {
                         showNetBoxError(data.error);
-                        sourceSelect.innerHTML = '<option value="">NetBox not available</option>';
-                        destSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        sourceSelect.innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                        destSelect.innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                        setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
+                        setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
                         return;
                     }
 
                     const options = data.options || [];
-                    if (options.length === 0) {
-                        sourceSelect.innerHTML = '<option value="">No subnets found in NetBox</option>';
-                        destSelect.innerHTML = '<option value="">No subnets found in NetBox</option>';
-                        return;
+                    let optionsHtml = '<option value="">Select a Subnet</option>';
+
+                    if (options.length > 0) {
+                        optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
                     }
 
-                    const optionsHtml = '<option value="">Select a Subnet</option>' +
-                        options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                    // Always add manual entry option
+                    optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
 
                     sourceSelect.innerHTML = optionsHtml;
                     destSelect.innerHTML = optionsHtml;
+
+                    // Setup toggle for manual entry
+                    setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
+                    setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
                 })
                 .catch(error => {
                     console.error('Error loading prefixes:', error);
-                    document.getElementById('source_subnet').innerHTML = '<option value="">Error loading subnets</option>';
-                    document.getElementById('destination_subnet').innerHTML = '<option value="">Error loading subnets</option>';
+                    document.getElementById('source_subnet').innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                    document.getElementById('destination_subnet').innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                    setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
+                    setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
                 });
         }
 
@@ -704,32 +803,67 @@
             });
         }
 
+        // Helper function to get value from dropdown or manual entry
+        function getFieldValue(selectId, manualInputId) {
+            const select = document.getElementById(selectId);
+            const manualInput = document.getElementById(manualInputId);
+
+            if (select.value === '__manual__') {
+                return manualInput.value.trim();
+            }
+            return select.value;
+        }
+
         // Form validation before submit
         document.getElementById('firewall-form').addEventListener('submit', function(e) {
             const sourceType = document.querySelector('input[name="source_type"]:checked').value;
             const destType = document.querySelector('input[name="destination_type"]:checked').value;
 
-            // Check source is selected
+            // Check source is selected or entered
             let sourceValue = '';
-            if (sourceType === 'vm') sourceValue = document.getElementById('source_vm').value;
-            else if (sourceType === 'ip') sourceValue = document.getElementById('source_ip').value;
-            else if (sourceType === 'subnet') sourceValue = document.getElementById('source_subnet').value;
+            let sourceSelect = '';
+            let sourceManual = '';
 
-            if (!sourceValue) {
+            if (sourceType === 'vm') {
+                sourceSelect = 'source_vm';
+                sourceManual = 'source_vm_manual';
+            } else if (sourceType === 'ip') {
+                sourceSelect = 'source_ip';
+                sourceManual = 'source_ip_manual';
+            } else if (sourceType === 'subnet') {
+                sourceSelect = 'source_subnet';
+                sourceManual = 'source_subnet_manual';
+            }
+
+            sourceValue = getFieldValue(sourceSelect, sourceManual);
+
+            if (!sourceValue || sourceValue === '__manual__') {
                 e.preventDefault();
-                alert('Please select a source ' + sourceType);
+                alert('Please select or enter a source ' + sourceType);
                 return;
             }
 
-            // Check destination is selected
+            // Check destination is selected or entered
             let destValue = '';
-            if (destType === 'vm') destValue = document.getElementById('destination_vm').value;
-            else if (destType === 'ip') destValue = document.getElementById('destination_ip').value;
-            else if (destType === 'subnet') destValue = document.getElementById('destination_subnet').value;
+            let destSelect = '';
+            let destManual = '';
 
-            if (!destValue) {
+            if (destType === 'vm') {
+                destSelect = 'destination_vm';
+                destManual = 'destination_vm_manual';
+            } else if (destType === 'ip') {
+                destSelect = 'destination_ip';
+                destManual = 'destination_ip_manual';
+            } else if (destType === 'subnet') {
+                destSelect = 'destination_subnet';
+                destManual = 'destination_subnet_manual';
+            }
+
+            destValue = getFieldValue(destSelect, destManual);
+
+            if (!destValue || destValue === '__manual__') {
                 e.preventDefault();
-                alert('Please select a destination ' + destType);
+                alert('Please select or enter a destination ' + destType);
                 return;
             }
 
