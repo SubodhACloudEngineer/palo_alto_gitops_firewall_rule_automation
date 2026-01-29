@@ -216,7 +216,16 @@
                     <td>{{ req.timestamp }}</td>
                     <td>{{ req.requester }}</td>
                     <td>
-                        {% if req.service_id == 'vlan_provisioning' %}
+                        {% if req.service_id == 'palo_alto_firewall_rule' %}
+                            <strong>{{ req.details.rule_name }}</strong><br>
+                            <small style="color: #666;">
+                                {{ req.source_address }} → {{ req.destination_address }}<br>
+                                Action: {{ req.details.action }} | Services: {{ req.details.service|join(', ') if req.details.service is iterable and req.details.service is not string else req.details.service }}
+                            </small>
+                            {% if req.duplicate_warning %}
+                            <br><small style="color: #FF9800;">Duplicate rule warning</small>
+                            {% endif %}
+                        {% elif req.service_id == 'vlan_provisioning' %}
                             <strong>VLAN {{ req.details.vlan_id }}</strong> - {{ req.details.vlan_name }}<br>
                             <small style="color: #666;">Devices: {{ req.details.devices|join(', ') }}</small>
                         {% elif req.service_id == 'azure_vm' %}
