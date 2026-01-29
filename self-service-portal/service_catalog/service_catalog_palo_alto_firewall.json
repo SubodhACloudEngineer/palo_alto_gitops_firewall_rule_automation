@@ -4,9 +4,8 @@
   "description": "Create firewall rules to allow or deny traffic between VMs",
   "category": "Security",
   "icon": "🔥",
-  "playbook": "/home/subodhkashyap/palo-alto-gitops-demo/playbooks/deploy_firewall_rule.yml",
+  "playbook": "playbooks/deploy_firewall_rule.yml",
   "git_enabled": true,
-  "git_repo_path": "/home/subodhkashyap/palo-alto-gitops-demo",
   "git_rules_path": "firewall-rules",
   "netbox_integration": true,
   "fields": [
