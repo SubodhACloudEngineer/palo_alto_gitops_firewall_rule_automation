@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>New Service Request - NTT DATA</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            padding: 30px 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .logo {
+            height: 50px;
+            width: auto;
+        }
+        .header-title h1 {
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 30px;
+            color: #0067B1;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #0067B1;
+        }
+        .checkbox-group {
+            display: flex;
+            gap: 25px;
+            flex-wrap: wrap;
+        }
+        .checkbox-group label {
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .button-group {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+        }
+        button {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        button[type="submit"] {
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            color: white;
+        }
+        button[type="submit"]:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 103, 177, 0.4);
+        }
+        .cancel-btn {
+            background-color: #757575;
+            color: white;
+        }
+        .cancel-btn:hover {
+            background-color: #616161;
+        }
+        .info-box {
+            background-color: #E3F2FD;
+            border-left: 4px solid #0067B1;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+        }
+        .info-box p {
+            color: #1565C0;
+            font-size: 14px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NTT DATA" class="logo" onerror="this.src='{{ url_for('static', filename='images/logo.png') }}'">
+            <div class="header-title">
+                <h1>New VLAN Provisioning Request</h1>
+            </div>
+        </div>
+        
+        <div class="content">
+            <a href="/" class="back-link">← Back to Dashboard</a>
+            
+            <div class="info-box">
+                <p><strong>Note:</strong> This request will automatically provision the VLAN on selected devices and sync to Netbox CMDB.</p>
+            </div>
+            
+            <form action="/submit_vlan_request" method="POST">
+                <div class="form-group">
+                    <label for="requester">Requester Name *</label>
+                    <input type="text" id="requester" name="requester" required value="Subodh Kashyap">
+                </div>
+                
+                <div class="form-group">
+                    <label for="vlan_id">VLAN ID *</label>
+                    <input type="number" id="vlan_id" name="vlan_id" min="1" max="4094" required placeholder="e.g., 100">
+                </div>
+                
+                <div class="form-group">
+                    <label for="vlan_name">VLAN Name *</label>
+                    <input type="text" id="vlan_name" name="vlan_name" required placeholder="e.g., PRODUCTION">
+                </div>
+                
+                <div class="form-group">
+                    <label>Target Devices *</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" name="devices" value="leaf1" checked> leaf1</label>
+                        <label><input type="checkbox" name="devices" value="leaf2" checked> leaf2</label>
+                        <label><input type="checkbox" name="devices" value="spine1"> spine1</label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Business Justification / Description *</label>
+                    <textarea id="description" name="description" rows="4" required placeholder="Explain the purpose and requirements for this VLAN..."></textarea>
+                </div>
+                
+                <div class="button-group">
+                    <button type="submit">Submit Request</button>
+                    <a href="/"><button type="button" class="cancel-btn">Cancel</button></a>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Service Catalog - NTT DATA</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            padding: 30px 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .logo {
+            height: 50px;
+            width: auto;
+        }
+        .header-title h1 {
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 30px;
+            color: #0067B1;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        h2 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        .service-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 25px;
+            transition: all 0.3s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .service-card:hover {
+            border-color: #0067B1;
+            box-shadow: 0 5px 20px rgba(0, 103, 177, 0.2);
+            transform: translateY(-2px);
+        }
+        .service-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .service-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .service-category {
+            display: inline-block;
+            padding: 4px 12px;
+            background-color: #E3F2FD;
+            color: #0067B1;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .service-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NTT DATA" class="logo" onerror="this.src='{{ url_for('static', filename='images/logo.png') }}'">
+            <div class="header-title">
+                <h1>Service Catalog</h1>
+            </div>
+        </div>
+        
+        <div class="content">
+            <a href="/" class="back-link">← Back to Dashboard</a>
+            
+            <h2>Select a Service</h2>
+            <p class="subtitle">Choose from our available infrastructure automation services</p>
+            
+            <div class="service-grid">
+                {% for service in services %}
+                <a href="/request_form/{{ service.service_id }}" class="service-card">
+                    <div class="service-icon">{{ service.icon }}</div>
+                    <span class="service-category">{{ service.category }}</span>
+                    <div class="service-title">{{ service.service_name }}</div>
+                    <div class="service-description">{{ service.description }}</div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

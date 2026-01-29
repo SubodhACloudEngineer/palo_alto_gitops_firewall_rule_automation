@@ -1,0 +1,45 @@
+{
+  "service_id": "vlan_provisioning",
+  "service_name": "VLAN Provisioning",
+  "description": "Configure VLANs on network devices",
+  "category": "Network",
+  "icon": "🔌",
+  "playbook": "/home/subodhkashyap/containerlab-labs/provision_vlan_docker.yml",
+  "fields": [
+    {
+      "name": "vlan_id",
+      "label": "VLAN ID",
+      "type": "number",
+      "required": true,
+      "min": 1,
+      "max": 4094,
+      "placeholder": "e.g., 100"
+    },
+    {
+      "name": "vlan_name",
+      "label": "VLAN Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., PRODUCTION"
+    },
+    {
+      "name": "target_devices",
+      "label": "Target Devices",
+      "type": "checkbox",
+      "required": true,
+      "options": [
+        {"value": "leaf1", "label": "leaf1", "checked": true},
+        {"value": "leaf2", "label": "leaf2", "checked": true},
+        {"value": "spine1", "label": "spine1", "checked": false}
+      ]
+    },
+    {
+      "name": "description",
+      "label": "Business Justification",
+      "type": "textarea",
+      "required": true,
+      "rows": 4,
+      "placeholder": "Explain the purpose and requirements..."
+    }
+  ]
+}
