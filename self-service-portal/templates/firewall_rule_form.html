@@ -87,6 +87,19 @@
             font-size: 14px;
             margin: 0;
         }
+        #netbox-error {
+            background-color: #FFEBEE;
+            border-left: 4px solid #F44336;
+        }
+        #netbox-error p {
+            color: #C62828;
+        }
+        #netbox-error code {
+            background-color: #FFCDD2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
         .section-title {
             font-size: 18px;
             font-weight: 600;
@@ -271,6 +284,10 @@
 
             <div class="info-box">
                 <p><strong>NetBox Integration:</strong> Source and destination options are fetched from NetBox CMDB, which is synchronized with your Palo Alto firewall and Azure infrastructure.</p>
+            </div>
+
+            <div class="warning-box" id="netbox-error">
+                <p><strong>NetBox Connection Error:</strong> Unable to connect to NetBox.</p>
             </div>
 
             <div class="warning-box" id="duplicate-warning">
@@ -481,6 +498,9 @@
     </div>
 
     <script>
+        // Global error tracking
+        let netboxErrors = [];
+
         // Load NetBox data on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadNetBoxDevices();
@@ -490,6 +510,20 @@
             setupCheckboxListeners();
         });
 
+        // Show error in the warning box
+        function showNetBoxError(error) {
+            if (!netboxErrors.includes(error)) {
+                netboxErrors.push(error);
+            }
+            const warningBox = document.getElementById('netbox-error');
+            warningBox.innerHTML = `<p><strong>NetBox Connection Error:</strong> ${error}</p>
+                <p style="margin-top: 10px; font-size: 12px;">
+                    To fix this, copy <code>env.example</code> to <code>.env</code> and set your NetBox token:<br>
+                    <code style="background: #fff3e0; padding: 2px 6px; margin-top: 5px; display: inline-block;">cp env.example .env && nano .env</code>
+                </p>`;
+            warningBox.classList.add('visible');
+        }
+
         // Fetch VMs from NetBox
         function loadNetBoxDevices() {
             fetch('/api/netbox/devices')
@@ -498,11 +532,26 @@
                     const sourceSelect = document.getElementById('source_vm');
                     const destSelect = document.getElementById('destination_vm');
 
-                    const options = '<option value="">Select a VM</option>' +
-                        data.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                    // Check for errors
+                    if (data.error) {
+                        showNetBoxError(data.error);
+                        sourceSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        destSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        return;
+                    }
 
-                    sourceSelect.innerHTML = options;
-                    destSelect.innerHTML = options;
+                    const options = data.options || [];
+                    if (options.length === 0) {
+                        sourceSelect.innerHTML = '<option value="">No VMs found in NetBox</option>';
+                        destSelect.innerHTML = '<option value="">No VMs found in NetBox</option>';
+                        return;
+                    }
+
+                    const optionsHtml = '<option value="">Select a VM</option>' +
+                        options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+
+                    sourceSelect.innerHTML = optionsHtml;
+                    destSelect.innerHTML = optionsHtml;
                 })
                 .catch(error => {
                     console.error('Error loading devices:', error);
@@ -519,11 +568,26 @@
                     const sourceSelect = document.getElementById('source_ip');
                     const destSelect = document.getElementById('destination_ip');
 
-                    const options = '<option value="">Select an IP</option>' +
-                        data.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                    // Check for errors
+                    if (data.error) {
+                        showNetBoxError(data.error);
+                        sourceSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        destSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        return;
+                    }
 
-                    sourceSelect.innerHTML = options;
-                    destSelect.innerHTML = options;
+                    const options = data.options || [];
+                    if (options.length === 0) {
+                        sourceSelect.innerHTML = '<option value="">No IPs found in NetBox</option>';
+                        destSelect.innerHTML = '<option value="">No IPs found in NetBox</option>';
+                        return;
+                    }
+
+                    const optionsHtml = '<option value="">Select an IP</option>' +
+                        options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+
+                    sourceSelect.innerHTML = optionsHtml;
+                    destSelect.innerHTML = optionsHtml;
                 })
                 .catch(error => {
                     console.error('Error loading IPs:', error);
@@ -540,11 +604,26 @@
                     const sourceSelect = document.getElementById('source_subnet');
                     const destSelect = document.getElementById('destination_subnet');
 
-                    const options = '<option value="">Select a Subnet</option>' +
-                        data.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                    // Check for errors
+                    if (data.error) {
+                        showNetBoxError(data.error);
+                        sourceSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        destSelect.innerHTML = '<option value="">NetBox not available</option>';
+                        return;
+                    }
 
-                    sourceSelect.innerHTML = options;
-                    destSelect.innerHTML = options;
+                    const options = data.options || [];
+                    if (options.length === 0) {
+                        sourceSelect.innerHTML = '<option value="">No subnets found in NetBox</option>';
+                        destSelect.innerHTML = '<option value="">No subnets found in NetBox</option>';
+                        return;
+                    }
+
+                    const optionsHtml = '<option value="">Select a Subnet</option>' +
+                        options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+
+                    sourceSelect.innerHTML = optionsHtml;
+                    destSelect.innerHTML = optionsHtml;
                 })
                 .catch(error => {
                     console.error('Error loading prefixes:', error);
