@@ -31,14 +31,14 @@ requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 # Palo Alto Configuration
 PA_CONFIG = {
     'host': '40.76.129.220',
-    'api_key': 'YOUR_API_KEY_HERE',  # Update this!
+    'api_key': 'LUFRPT03ZVlPQ1o5UmQ5NFdvOFNqNGdZMXlTQk11WkU9UU5HYzJRWkNVUzBIVndaRVpDNjhSQzBTR0NaVCtCdDlySDNoMlVGV2dGVWFnQ24xanN0ZjJOeXZyUmtGQjlKag==',  # Update this!
     'verify_ssl': False
 }
 
 # NetBox Configuration
 NETBOX_CONFIG = {
     'url': 'http://localhost:8000',  # Your NetBox URL
-    'token': 'YOUR_NETBOX_TOKEN_HERE',  # Create in NetBox: Admin → API Tokens
+    'token': 'cb8da4ed137116561635c752a5c685753c246cae',  # Create in NetBox: Admin → API Tokens
     'verify_ssl': False
 }
 
