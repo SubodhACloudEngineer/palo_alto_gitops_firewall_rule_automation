@@ -1,0 +1,39 @@
+{
+  "rule_name": "check_fw_rule101",
+  "description": "qwerty",
+  "source_zone": [
+    "trust"
+  ],
+  "destination_zone": [
+    "untrust"
+  ],
+  "source_address": [
+    "user01workstation"
+  ],
+  "destination_address": [
+    "web01application"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "test101",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-01-30 12:13:32",
+    "request_id": "SR-1001",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "qwerty"
+  }
+}
