@@ -489,25 +489,58 @@ def commit_rule_to_git(service_request, rule_filepath, rule_filename):
         # Branch name based on SR number
         branch_name = f"firewall-rule/{request_id}"
 
+        # Re-load .env file to get latest credentials
+        load_env_file()
+
+        # Get Git credentials
+        git_username = os.environ.get('GIT_USERNAME', '')
+        git_token = os.environ.get('GIT_TOKEN', '')
+
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Git credentials configured: {"Yes" if git_username and git_token else "No"}'
+        })
+
         # Configure Git
         subprocess.run(['git', 'config', 'user.name', GIT_USER_NAME],
                       cwd=GIT_REPO_PATH, check=True, capture_output=True)
         subprocess.run(['git', 'config', 'user.email', GIT_USER_EMAIL],
                       cwd=GIT_REPO_PATH, check=True, capture_output=True)
 
-        # Get current branch to return to later (optional)
-        current_branch_result = subprocess.run(
-            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+        # Get current remote URL
+        remote_result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
             cwd=GIT_REPO_PATH, capture_output=True, text=True
         )
-        original_branch = current_branch_result.stdout.strip()
+        original_remote_url = remote_result.stdout.strip()
+        url_changed = False
 
-        # Fetch latest from origin
-        subprocess.run(['git', 'fetch', 'origin'],
-                      cwd=GIT_REPO_PATH, capture_output=True)
+        # Fetch latest from origin (with credentials if available)
+        if git_username and git_token:
+            # Build authenticated URL
+            if 'github.com' in original_remote_url:
+                if original_remote_url.startswith('https://'):
+                    auth_url = original_remote_url.replace(
+                        'https://github.com',
+                        f'https://{git_username}:{git_token}@github.com'
+                    )
+                elif original_remote_url.startswith('git@'):
+                    # Convert SSH to HTTPS with auth
+                    repo_path = original_remote_url.replace('git@github.com:', '').replace('.git', '')
+                    auth_url = f'https://{git_username}:{git_token}@github.com/{repo_path}.git'
+                else:
+                    auth_url = original_remote_url
+
+                # Temporarily set remote URL with auth
+                subprocess.run(['git', 'remote', 'set-url', 'origin', auth_url],
+                              cwd=GIT_REPO_PATH, capture_output=True)
+                url_changed = True
+
+        # Fetch from origin
+        fetch_result = subprocess.run(['git', 'fetch', 'origin'],
+                      cwd=GIT_REPO_PATH, capture_output=True, text=True)
 
         # Create and checkout new branch from main/master
-        # Try main first, then master
         base_branch = 'main'
         check_main = subprocess.run(
             ['git', 'rev-parse', '--verify', 'origin/main'],
@@ -546,42 +579,21 @@ def commit_rule_to_git(service_request, rule_filepath, rule_filename):
             'message': f'Committed rule with message: [{request_id}] Add firewall rule: {rule_name}'
         })
 
-        # Git push with credentials
-        git_username = os.environ.get('GIT_USERNAME', '')
-        git_token = os.environ.get('GIT_TOKEN', '')
+        # Git push
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Pushing to remote branch: {branch_name}'
+        })
 
-        if git_username and git_token:
-            # Get the remote URL and add credentials
-            remote_result = subprocess.run(
-                ['git', 'remote', 'get-url', 'origin'],
-                cwd=GIT_REPO_PATH, capture_output=True, text=True
-            )
-            remote_url = remote_result.stdout.strip()
+        push_result = subprocess.run(
+            ['git', 'push', '-u', 'origin', branch_name],
+            cwd=GIT_REPO_PATH, capture_output=True, text=True
+        )
 
-            # Parse and reconstruct URL with credentials
-            if 'github.com' in remote_url:
-                if remote_url.startswith('https://'):
-                    # Insert credentials into URL
-                    auth_url = remote_url.replace('https://', f'https://{git_username}:{git_token}@')
-                    push_result = subprocess.run(
-                        ['git', 'push', '-u', auth_url, branch_name],
-                        cwd=GIT_REPO_PATH, capture_output=True, text=True
-                    )
-                else:
-                    push_result = subprocess.run(
-                        ['git', 'push', '-u', 'origin', branch_name],
-                        cwd=GIT_REPO_PATH, capture_output=True, text=True
-                    )
-            else:
-                push_result = subprocess.run(
-                    ['git', 'push', '-u', 'origin', branch_name],
-                    cwd=GIT_REPO_PATH, capture_output=True, text=True
-                )
-        else:
-            push_result = subprocess.run(
-                ['git', 'push', '-u', 'origin', branch_name],
-                cwd=GIT_REPO_PATH, capture_output=True, text=True
-            )
+        # Restore original remote URL if we changed it
+        if url_changed:
+            subprocess.run(['git', 'remote', 'set-url', 'origin', original_remote_url],
+                          cwd=GIT_REPO_PATH, capture_output=True)
 
         if push_result.returncode == 0:
             service_request['git_commit'] = True
@@ -589,7 +601,7 @@ def commit_rule_to_git(service_request, rule_filepath, rule_filename):
             service_request['git_output'] = push_result.stdout
             service_request['logs'].append({
                 'timestamp': datetime.now().strftime('%H:%M:%S'),
-                'message': f'Pushed to branch: {branch_name}'
+                'message': f'Successfully pushed to branch: {branch_name}'
             })
             return True
         else:
@@ -606,6 +618,27 @@ def commit_rule_to_git(service_request, rule_filepath, rule_filename):
             'timestamp': datetime.now().strftime('%H:%M:%S'),
             'message': f'Git error: {str(e)}'
         })
+        # Restore original remote URL on error
+        try:
+            if 'url_changed' in locals() and url_changed:
+                subprocess.run(['git', 'remote', 'set-url', 'origin', original_remote_url],
+                              cwd=GIT_REPO_PATH, capture_output=True)
+        except:
+            pass
+        return False
+    except Exception as e:
+        service_request['git_error'] = str(e)
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Unexpected error: {str(e)}'
+        })
+        # Restore original remote URL on error
+        try:
+            if 'url_changed' in locals() and url_changed:
+                subprocess.run(['git', 'remote', 'set-url', 'origin', original_remote_url],
+                              cwd=GIT_REPO_PATH, capture_output=True)
+        except:
+            pass
         return False
 
 
