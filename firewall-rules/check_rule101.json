@@ -1,0 +1,39 @@
+{
+  "rule_name": "check_rule101",
+  "description": "test101",
+  "source_zone": [
+    "untrust"
+  ],
+  "destination_zone": [
+    "trust"
+  ],
+  "source_address": [
+    "194.23.4.5"
+  ],
+  "destination_address": [
+    "183.45.5.5"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "Jane",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-01-30 09:01:19",
+    "request_id": "SR-1002",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "test101"
+  }
+}
