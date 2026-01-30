@@ -2,11 +2,17 @@
 """
 Firewall Rule Schema Validator
 Validates firewall rule JSON files against the defined JSON schema.
+
+Usage:
+    python validate_schema.py                    # Validate all non-template rules
+    python validate_schema.py file1.json file2.json  # Validate specific files
+    python validate_schema.py --all              # Validate all files including templates
 """
 
 import json
 import sys
 import os
+import argparse
 from pathlib import Path
 
 try:
@@ -21,6 +27,39 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 PROJECT_ROOT = SCRIPT_DIR.parent
 RULES_DIR = PROJECT_ROOT / "firewall-rules"
 SCHEMA_FILE = PROJECT_ROOT / "schemas" / "firewall-rule-schema.json"
+
+# Files to exclude from validation (templates, examples, etc.)
+EXCLUDED_FILES = {
+    'template.json',
+    'example.json',
+    'sample.json',
+    '.template.json',
+}
+
+# Patterns to exclude (files containing these strings)
+EXCLUDED_PATTERNS = [
+    'template',
+    'example',
+    'sample',
+    '.bak',
+    '.backup',
+]
+
+
+def should_exclude_file(filename):
+    """Check if a file should be excluded from validation."""
+    lower_name = filename.lower()
+
+    # Check exact matches
+    if lower_name in EXCLUDED_FILES:
+        return True
+
+    # Check patterns
+    for pattern in EXCLUDED_PATTERNS:
+        if pattern in lower_name:
+            return True
+
+    return False
 
 
 def load_schema():
@@ -56,8 +95,14 @@ def validate_rule(rule_data, schema, rule_file):
     return errors
 
 
-def validate_all_rules():
-    """Validate all firewall rules in the rules directory."""
+def validate_rules(specific_files=None, include_all=False):
+    """
+    Validate firewall rules.
+
+    Args:
+        specific_files: List of specific files to validate (if None, validates all)
+        include_all: If True, includes template files in validation
+    """
     print("=" * 60)
     print("FIREWALL RULE SCHEMA VALIDATION")
     print("=" * 60)
@@ -69,19 +114,48 @@ def validate_all_rules():
     print("Schema loaded successfully")
     print()
 
-    # Find all rule files
-    rule_files = list(RULES_DIR.glob("*.json")) + list(RULES_DIR.glob("*.yaml"))
+    # Determine which files to validate
+    if specific_files:
+        # Validate specific files passed as arguments
+        rule_files = []
+        for file_path in specific_files:
+            path = Path(file_path)
+            if not path.is_absolute():
+                # Try relative to project root first
+                full_path = PROJECT_ROOT / path
+                if not full_path.exists():
+                    # Try relative to rules directory
+                    full_path = RULES_DIR / path.name
+                path = full_path
+
+            if path.exists() and path.suffix in ['.json', '.yaml', '.yml']:
+                rule_files.append(path)
+            else:
+                print(f"WARNING: File not found or invalid: {file_path}")
+        print(f"Validating {len(rule_files)} specified file(s)")
+    else:
+        # Find all rule files
+        rule_files = list(RULES_DIR.glob("*.json")) + list(RULES_DIR.glob("*.yaml"))
+
+        # Filter out excluded files unless --all is specified
+        if not include_all:
+            original_count = len(rule_files)
+            rule_files = [f for f in rule_files if not should_exclude_file(f.name)]
+            excluded_count = original_count - len(rule_files)
+            if excluded_count > 0:
+                print(f"Excluding {excluded_count} template/example file(s)")
+        print(f"Found {len(rule_files)} rule file(s) to validate")
 
     if not rule_files:
-        print("WARNING: No firewall rule files found in", RULES_DIR)
+        print("WARNING: No firewall rule files found to validate")
         return True
 
-    print(f"Found {len(rule_files)} rule file(s) to validate")
     print("-" * 60)
 
     all_errors = []
     validated_count = 0
     failed_count = 0
+    skipped_count = 0
 
     for rule_file in sorted(rule_files):
         print(f"\nValidating: {rule_file.name}")
@@ -145,8 +219,56 @@ def validate_all_rules():
 
 def main():
     """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description='Validate firewall rule JSON files against schema',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  %(prog)s                           Validate all rules (excluding templates)
+  %(prog)s rule1.json rule2.json     Validate specific files only
+  %(prog)s --all                     Validate all files including templates
+  %(prog)s --changed                 Validate only changed files (from git)
+        '''
+    )
+    parser.add_argument(
+        'files',
+        nargs='*',
+        help='Specific rule files to validate'
+    )
+    parser.add_argument(
+        '--all',
+        action='store_true',
+        help='Include template and example files in validation'
+    )
+    parser.add_argument(
+        '--changed',
+        action='store_true',
+        help='Only validate files changed in the current git commit/PR'
+    )
+
+    args = parser.parse_args()
+
     try:
-        success = validate_all_rules()
+        specific_files = args.files if args.files else None
+
+        # If --changed flag, get changed files from git
+        if args.changed and not specific_files:
+            import subprocess
+            try:
+                # Try to get changed files from git
+                result = subprocess.run(
+                    ['git', 'diff', '--name-only', 'HEAD~1', '--', 'firewall-rules/*.json'],
+                    capture_output=True,
+                    text=True,
+                    cwd=PROJECT_ROOT
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    specific_files = result.stdout.strip().split('\n')
+                    print(f"Found {len(specific_files)} changed file(s) from git")
+            except Exception as e:
+                print(f"WARNING: Could not get changed files from git: {e}")
+
+        success = validate_rules(specific_files=specific_files, include_all=args.all)
         sys.exit(0 if success else 1)
     except Exception as e:
         print(f"FATAL ERROR: {e}")
