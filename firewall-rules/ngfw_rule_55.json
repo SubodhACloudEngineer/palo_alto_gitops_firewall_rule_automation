@@ -1,0 +1,39 @@
+{
+  "rule_name": "ngfw_rule_55",
+  "description": "SR-1002",
+  "source_zone": [
+    "trust"
+  ],
+  "destination_zone": [
+    "untrust"
+  ],
+  "source_address": [
+    "40.76.146.109"
+  ],
+  "destination_address": [
+    "20.115.65.35"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "Jane",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-01-30 13:34:24",
+    "request_id": "SR-1003",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "SR-1002"
+  }
+}
