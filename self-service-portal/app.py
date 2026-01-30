@@ -111,14 +111,22 @@ class NetBoxClient:
             print(f"NetBox API error: {self.last_error}")
             return {'results': [], 'count': 0, 'error': self.last_error}
 
-    def get_devices(self, site=None, role=None):
+    def get_devices(self, site=None, role=None, exclude_role=None):
         """Get devices from NetBox"""
         params = {}
         if site:
             params['site'] = site
         if role:
             params['role'] = role
+        if exclude_role:
+            params['role__n'] = exclude_role
 
+        data = self.get('/api/dcim/devices/', params)
+        return data.get('results', [])
+
+    def get_firewalls(self):
+        """Get firewall devices from NetBox"""
+        params = {'role': 'firewall'}
         data = self.get('/api/dcim/devices/', params)
         return data.get('results', [])
 
@@ -265,13 +273,14 @@ def submit_request(service_id):
         else:
             form_data[field_name] = request.form.get(field_name)
 
-    # For firewall rules, also collect manual entry fields
+    # For firewall rules, also collect additional fields
     if service_id == 'palo_alto_firewall_rule':
-        manual_fields = [
+        additional_fields = [
+            'target_firewall',
             'source_vm_manual', 'source_ip_manual', 'source_subnet_manual',
             'destination_vm_manual', 'destination_ip_manual', 'destination_subnet_manual'
         ]
-        for field_name in manual_fields:
+        for field_name in additional_fields:
             form_data[field_name] = request.form.get(field_name, '')
 
     # Special handling for firewall rules
@@ -447,6 +456,7 @@ def create_firewall_rule_json(service_request):
     rule_json = {
         "rule_name": details['rule_name'],
         "description": details.get('description', ''),
+        "target_firewall": details.get('target_firewall', ''),
         "source_zone": [details['source_zone']],
         "destination_zone": [details['destination_zone']],
         "source_address": [service_request['source_address']],
@@ -471,22 +481,59 @@ def create_firewall_rule_json(service_request):
 
 
 def commit_rule_to_git(service_request, rule_filepath, rule_filename):
-    """Commit firewall rule to Git repository"""
+    """Commit firewall rule to Git repository with new branch"""
     try:
+        request_id = service_request['id']
+        rule_name = service_request['details']['rule_name']
+
+        # Branch name based on SR number
+        branch_name = f"firewall-rule/{request_id}"
+
         # Configure Git
         subprocess.run(['git', 'config', 'user.name', GIT_USER_NAME],
                       cwd=GIT_REPO_PATH, check=True, capture_output=True)
         subprocess.run(['git', 'config', 'user.email', GIT_USER_EMAIL],
                       cwd=GIT_REPO_PATH, check=True, capture_output=True)
 
+        # Get current branch to return to later (optional)
+        current_branch_result = subprocess.run(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            cwd=GIT_REPO_PATH, capture_output=True, text=True
+        )
+        original_branch = current_branch_result.stdout.strip()
+
+        # Fetch latest from origin
+        subprocess.run(['git', 'fetch', 'origin'],
+                      cwd=GIT_REPO_PATH, capture_output=True)
+
+        # Create and checkout new branch from main/master
+        # Try main first, then master
+        base_branch = 'main'
+        check_main = subprocess.run(
+            ['git', 'rev-parse', '--verify', 'origin/main'],
+            cwd=GIT_REPO_PATH, capture_output=True
+        )
+        if check_main.returncode != 0:
+            base_branch = 'master'
+
+        # Create new branch
+        subprocess.run(['git', 'checkout', '-b', branch_name, f'origin/{base_branch}'],
+                      cwd=GIT_REPO_PATH, check=True, capture_output=True)
+
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Created branch: {branch_name}'
+        })
+
         # Git add
         subprocess.run(['git', 'add', rule_filepath],
                       cwd=GIT_REPO_PATH, check=True, capture_output=True)
 
-        # Git commit
-        commit_message = f"Firewall Rule: {service_request['details']['rule_name']}\n\n" \
+        # Git commit with SR number
+        commit_message = f"[{request_id}] Add firewall rule: {rule_name}\n\n" \
+                        f"Request ID: {request_id}\n" \
                         f"Requester: {service_request['requester']}\n" \
-                        f"Request ID: {service_request['id']}\n" \
+                        f"Target Firewall: {service_request['details'].get('target_firewall', 'N/A')}\n" \
                         f"Action: {service_request['details']['action']}\n" \
                         f"Source: {service_request['source_address']}\n" \
                         f"Destination: {service_request['destination_address']}"
@@ -494,20 +541,71 @@ def commit_rule_to_git(service_request, rule_filepath, rule_filename):
         subprocess.run(['git', 'commit', '-m', commit_message],
                       cwd=GIT_REPO_PATH, check=True, capture_output=True)
 
-        # Git push
-        push_result = subprocess.run(['git', 'push'],
-                                    cwd=GIT_REPO_PATH, capture_output=True, text=True)
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Committed rule with message: [{request_id}] Add firewall rule: {rule_name}'
+        })
+
+        # Git push with credentials
+        git_username = os.environ.get('GIT_USERNAME', '')
+        git_token = os.environ.get('GIT_TOKEN', '')
+
+        if git_username and git_token:
+            # Get the remote URL and add credentials
+            remote_result = subprocess.run(
+                ['git', 'remote', 'get-url', 'origin'],
+                cwd=GIT_REPO_PATH, capture_output=True, text=True
+            )
+            remote_url = remote_result.stdout.strip()
+
+            # Parse and reconstruct URL with credentials
+            if 'github.com' in remote_url:
+                if remote_url.startswith('https://'):
+                    # Insert credentials into URL
+                    auth_url = remote_url.replace('https://', f'https://{git_username}:{git_token}@')
+                    push_result = subprocess.run(
+                        ['git', 'push', '-u', auth_url, branch_name],
+                        cwd=GIT_REPO_PATH, capture_output=True, text=True
+                    )
+                else:
+                    push_result = subprocess.run(
+                        ['git', 'push', '-u', 'origin', branch_name],
+                        cwd=GIT_REPO_PATH, capture_output=True, text=True
+                    )
+            else:
+                push_result = subprocess.run(
+                    ['git', 'push', '-u', 'origin', branch_name],
+                    cwd=GIT_REPO_PATH, capture_output=True, text=True
+                )
+        else:
+            push_result = subprocess.run(
+                ['git', 'push', '-u', 'origin', branch_name],
+                cwd=GIT_REPO_PATH, capture_output=True, text=True
+            )
 
         if push_result.returncode == 0:
             service_request['git_commit'] = True
+            service_request['git_branch'] = branch_name
             service_request['git_output'] = push_result.stdout
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': f'Pushed to branch: {branch_name}'
+            })
             return True
         else:
             service_request['git_error'] = push_result.stderr
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': f'Push failed: {push_result.stderr}'
+            })
             return False
 
     except subprocess.CalledProcessError as e:
         service_request['git_error'] = str(e)
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Git error: {str(e)}'
+        })
         return False
 
 
@@ -669,14 +767,44 @@ def execute_provisioning(service_request):
 # API ENDPOINTS FOR NETBOX DATA
 # ============================================
 
+@app.route('/api/netbox/firewalls')
+def api_netbox_firewalls():
+    """Get firewall devices from NetBox for dropdown"""
+    firewalls = netbox.get_firewalls()
+
+    # Check for errors
+    if netbox.last_error:
+        return jsonify({'error': netbox.last_error, 'options': []})
+
+    options = []
+    for fw in firewalls:
+        name = fw.get('name', '')
+        primary_ip = fw.get('primary_ip4')
+        if primary_ip:
+            ip_address = primary_ip['address'].split('/')[0]  # Remove CIDR
+            options.append({
+                'value': name,
+                'label': f"{name} ({ip_address})",
+                'ip_address': ip_address
+            })
+        else:
+            options.append({
+                'value': name,
+                'label': name,
+                'ip_address': None
+            })
+
+    return jsonify({'options': options})
+
+
 @app.route('/api/netbox/devices')
 def api_netbox_devices():
-    """Get devices and virtual machines from NetBox for dropdown"""
+    """Get devices and virtual machines from NetBox for dropdown (excluding firewalls)"""
     site = request.args.get('site')
     role = request.args.get('role')
 
-    # Fetch both devices and virtual machines
-    devices = netbox.get_devices(site=site, role=role)
+    # Fetch devices (excluding firewalls) and virtual machines
+    devices = netbox.get_devices(site=site, role=role, exclude_role='firewall')
     virtual_machines = netbox.get_virtual_machines(site=site)
 
     # Check for errors
@@ -687,11 +815,22 @@ def api_netbox_devices():
     options = []
     seen_names = set()
 
+    # Roles to exclude (network infrastructure, not endpoints)
+    excluded_roles = {'firewall', 'switch', 'router'}
+
     # Process devices
     for device in devices:
         name = device.get('name', '')
         if name in seen_names:
             continue
+
+        # Skip devices with infrastructure roles
+        device_role = device.get('role', {})
+        if device_role:
+            role_slug = device_role.get('slug', '').lower() if isinstance(device_role, dict) else ''
+            if role_slug in excluded_roles:
+                continue
+
         seen_names.add(name)
 
         primary_ip = device.get('primary_ip4')
