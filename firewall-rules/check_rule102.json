@@ -1,0 +1,39 @@
+{
+  "rule_name": "check_rule102",
+  "description": "containerlab",
+  "source_zone": [
+    "dmz"
+  ],
+  "destination_zone": [
+    "untrust"
+  ],
+  "source_address": [
+    "web01application"
+  ],
+  "destination_address": [
+    "user01workstation"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "John",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-01-30 11:31:00",
+    "request_id": "SR-1002",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "containerlab"
+  }
+}
