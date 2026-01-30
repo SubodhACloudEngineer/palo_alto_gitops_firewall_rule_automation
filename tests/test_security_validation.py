@@ -11,14 +11,27 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 RULES_DIR = PROJECT_ROOT / "firewall-rules"
 
+# Files to exclude from validation (templates, examples, etc.)
+EXCLUDED_PATTERNS = ['template', 'example', 'sample', '.bak', '.backup']
+
+
+def get_rule_files():
+    """Get all rule files excluding templates and examples."""
+    rule_files = []
+    for rule_file in RULES_DIR.glob("*.json"):
+        filename_lower = rule_file.name.lower()
+        if not any(pattern in filename_lower for pattern in EXCLUDED_PATTERNS):
+            rule_files.append(rule_file)
+    return rule_files
+
 
 class TestSecurityPolicies:
     """Test security policy compliance."""
 
     def get_all_rules(self):
-        """Load all rule files."""
+        """Load all rule files excluding templates."""
         rules = []
-        rule_files = list(RULES_DIR.glob("*.json"))
+        rule_files = get_rule_files()
         for rule_file in rule_files:
             with open(rule_file, 'r') as f:
                 rule = json.load(f)
@@ -94,9 +107,9 @@ class TestMetadataCompliance:
     """Test metadata compliance for audit purposes."""
 
     def get_all_rules(self):
-        """Load all rule files."""
+        """Load all rule files excluding templates."""
         rules = []
-        rule_files = list(RULES_DIR.glob("*.json"))
+        rule_files = get_rule_files()
         for rule_file in rule_files:
             with open(rule_file, 'r') as f:
                 rule = json.load(f)
@@ -158,9 +171,9 @@ class TestRuleNaming:
     """Test rule naming conventions."""
 
     def get_all_rules(self):
-        """Load all rule files."""
+        """Load all rule files excluding templates."""
         rules = []
-        rule_files = list(RULES_DIR.glob("*.json"))
+        rule_files = get_rule_files()
         for rule_file in rule_files:
             with open(rule_file, 'r') as f:
                 rule = json.load(f)
