@@ -185,6 +185,49 @@
                     <label>Requester</label>
                     <div class="value">{{ request.requester }}</div>
                 </div>
+
+                {% if request.service_id == 'palo_alto_firewall_rule' %}
+                <!-- Firewall Rule Details -->
+                <div class="info-item">
+                    <label>Target Firewall</label>
+                    <div class="value">{{ request.details.target_firewall or 'N/A' }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Rule Name</label>
+                    <div class="value">{{ request.details.rule_name }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Action</label>
+                    <div class="value">{{ request.details.action|upper }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Source Address</label>
+                    <div class="value">{{ request.source_address or 'N/A' }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Source Zone</label>
+                    <div class="value">{{ request.details.source_zone }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Destination Address</label>
+                    <div class="value">{{ request.destination_address or 'N/A' }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Destination Zone</label>
+                    <div class="value">{{ request.details.destination_zone }}</div>
+                </div>
+                <div class="info-item">
+                    <label>Services/Applications</label>
+                    <div class="value">{{ request.details.service|join(', ') if request.details.service is iterable and request.details.service is not string else request.details.service }}</div>
+                </div>
+                {% if request.git_branch %}
+                <div class="info-item">
+                    <label>Git Branch</label>
+                    <div class="value">{{ request.git_branch }}</div>
+                </div>
+                {% endif %}
+                {% else %}
+                <!-- VLAN/Other Service Details -->
                 <div class="info-item">
                     <label>VLAN ID</label>
                     <div class="value">{{ request.details.vlan_id }}</div>
@@ -195,10 +238,11 @@
                 </div>
                 <div class="info-item">
                     <label>Target Devices</label>
-                    <div class="value">{{ request.details.devices|join(', ') }}</div>
+                    <div class="value">{{ request.details.devices|join(', ') if request.details.devices else 'N/A' }}</div>
                 </div>
+                {% endif %}
             </div>
-            
+
             <div class="info-item">
                 <label>Business Justification</label>
                 <div class="value">{{ request.details.description }}</div>
@@ -226,10 +270,16 @@
             <div class="output-box">{{ request.netbox_output }}</div>
             {% endif %}
             
-            {% if request.status in ['Completed', 'Completed (Netbox sync warning)'] %}
-            <a href="{{ netbox_url }}/ipam/vlans/" target="_blank" class="netbox-link">
-                📊 View VLAN in Netbox CMDB
-            </a>
+            {% if request.status in ['Completed', 'Completed (Netbox sync warning)', 'Completed - Pending CI/CD'] %}
+                {% if request.service_id == 'palo_alto_firewall_rule' %}
+                <a href="{{ netbox_url }}/dcim/devices/?role=firewall" target="_blank" class="netbox-link">
+                    🔥 View Firewalls in Netbox CMDB
+                </a>
+                {% else %}
+                <a href="{{ netbox_url }}/ipam/vlans/" target="_blank" class="netbox-link">
+                    📊 View VLAN in Netbox CMDB
+                </a>
+                {% endif %}
             {% endif %}
         </div>
     </div>

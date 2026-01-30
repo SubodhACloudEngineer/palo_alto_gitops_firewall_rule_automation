@@ -329,6 +329,17 @@
                     <input type="text" id="requester" name="requester" required placeholder="Enter your name">
                 </div>
 
+                <!-- Target Firewall Selection -->
+                <div class="section-title">Target Firewall</div>
+
+                <div class="form-group">
+                    <label for="target_firewall">Select Firewall * <span class="netbox-badge">NetBox</span></label>
+                    <select id="target_firewall" name="target_firewall" required>
+                        <option value="">Loading firewalls from NetBox...</option>
+                    </select>
+                    <div class="help-text">Select the firewall where this rule will be deployed</div>
+                </div>
+
                 <!-- Rule Name -->
                 <div class="section-title">Rule Configuration</div>
 
@@ -561,6 +572,7 @@
 
         // Load NetBox data on page load
         document.addEventListener('DOMContentLoaded', function() {
+            loadNetBoxFirewalls();
             loadNetBoxDevices();
             loadNetBoxIPs();
             loadNetBoxPrefixes();
@@ -580,6 +592,37 @@
                     <code style="background: #fff3e0; padding: 2px 6px; margin-top: 5px; display: inline-block;">cp env.example .env && nano .env</code>
                 </p>`;
             warningBox.classList.add('visible');
+        }
+
+        // Fetch Firewalls from NetBox
+        function loadNetBoxFirewalls() {
+            fetch('/api/netbox/firewalls')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('target_firewall');
+
+                    // Check for errors
+                    if (data.error) {
+                        showNetBoxError(data.error);
+                        select.innerHTML = '<option value="">No firewalls available</option>';
+                        return;
+                    }
+
+                    const options = data.options || [];
+                    if (options.length === 0) {
+                        select.innerHTML = '<option value="">No firewalls found in NetBox</option>';
+                        return;
+                    }
+
+                    let optionsHtml = '<option value="">Select a firewall</option>';
+                    optionsHtml += options.map(fw => `<option value="${fw.value}">${fw.label}</option>`).join('');
+
+                    select.innerHTML = optionsHtml;
+                })
+                .catch(error => {
+                    console.error('Error loading firewalls:', error);
+                    document.getElementById('target_firewall').innerHTML = '<option value="">Error loading firewalls</option>';
+                });
         }
 
         // Setup manual entry toggle for a dropdown
