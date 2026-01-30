@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Error - Self-Service Portal</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .error-container {
+            max-width: 600px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+            text-align: center;
+        }
+        .error-header {
+            background: linear-gradient(135deg, #EF5350 0%, #C62828 100%);
+            padding: 40px;
+            color: white;
+        }
+        .error-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .error-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .error-content {
+            padding: 40px;
+        }
+        .error-message {
+            font-size: 16px;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        .back-btn {
+            display: inline-block;
+            padding: 14px 40px;
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 103, 177, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-header">
+            <div class="error-icon">&#9888;</div>
+            <h1>{{ error_title }}</h1>
+        </div>
+        <div class="error-content">
+            <p class="error-message">{{ error_message }}</p>
+            <a href="{{ back_url }}" class="back-btn">Go Back</a>
+        </div>
+    </div>
+</body>
+</html>
