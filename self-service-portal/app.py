@@ -315,6 +315,14 @@ def submit_request(service_id):
 # FIREWALL RULE HANDLING
 # ============================================
 
+def is_any_address(value):
+    """Check if an address represents 'any' (0.0.0.0/0, any, etc.)"""
+    if not value:
+        return False
+    normalized = value.lower().strip()
+    return normalized in ('any', '0.0.0.0/0', '0.0.0.0', '::/0', '::')
+
+
 def handle_firewall_rule_request(service, requester, form_data):
     """Handle firewall rule submission with Git integration"""
     global request_counter
@@ -322,6 +330,7 @@ def handle_firewall_rule_request(service, requester, form_data):
     # Extract source and destination based on type
     source_type = form_data.get('source_type', 'vm')
     dest_type = form_data.get('destination_type', 'vm')
+    action = form_data.get('action', 'allow')
 
     # Helper to get value from dropdown or manual entry
     def get_field_value(field_name, field_type):
@@ -346,8 +355,28 @@ def handle_firewall_rule_request(service, requester, form_data):
     else:
         dest_address = get_field_value('destination_subnet', 'subnet')
 
-    # Check for duplicate rule
+    # SECURITY CHECK: Block "Allow Any to Any" rules
+    if action == 'allow' and is_any_address(source_address) and is_any_address(dest_address):
+        return render_template('error.html',
+                             error_title='Security Policy Violation',
+                             error_message='Implicit Allow All is a cybersecurity RISK! Creating a rule that allows traffic from ANY source to ANY destination is extremely dangerous and violates security best practices.',
+                             back_url='/new_request'), 400
+
+    # Check for duplicate rule in firewall-rules directory
+    is_duplicate_file, existing_file_rule = check_existing_rules(source_address, dest_address)
+    if is_duplicate_file:
+        return render_template('error.html',
+                             error_title='Duplicate Rule Detected',
+                             error_message=f"A rule with the same source and destination already exists: {existing_file_rule.get('rule_name', 'Unknown')}",
+                             back_url='/new_request'), 400
+
+    # Check for duplicate rule in NetBox
     is_duplicate, existing_rule = netbox.check_duplicate_rule(source_address, dest_address)
+    if is_duplicate:
+        return render_template('error.html',
+                             error_title='Duplicate Rule Detected',
+                             error_message=f"A rule with the same source and destination already exists in NetBox.",
+                             back_url='/new_request'), 400
 
     # Create service request
     request_counter += 1
@@ -456,7 +485,6 @@ def create_firewall_rule_json(service_request):
     rule_json = {
         "rule_name": details['rule_name'],
         "description": details.get('description', ''),
-        "target_firewall": details.get('target_firewall', ''),
         "source_zone": [details['source_zone']],
         "destination_zone": [details['destination_zone']],
         "source_address": [service_request['source_address']],
@@ -473,6 +501,7 @@ def create_firewall_rule_json(service_request):
             "created_via": "Self-Service Portal",
             "timestamp": service_request['timestamp'],
             "request_id": service_request['id'],
+            "target_firewall": details.get('target_firewall', ''),
             "business_justification": details.get('description', '')
         }
     }
@@ -966,20 +995,73 @@ def api_netbox_existing_rules():
     return jsonify(rules)
 
 
+def check_existing_rules(source_address, dest_address):
+    """Check if a rule with the same source/destination already exists in firewall-rules directory"""
+    if not os.path.exists(FIREWALL_RULES_PATH):
+        return False, None
+
+    # Normalize addresses (remove CIDR notation for comparison)
+    source_normalized = source_address.split('/')[0].lower().strip()
+    dest_normalized = dest_address.split('/')[0].lower().strip()
+
+    rule_files = glob.glob(os.path.join(FIREWALL_RULES_PATH, '*.json'))
+
+    for rule_file in rule_files:
+        try:
+            with open(rule_file, 'r') as f:
+                rule = json.load(f)
+
+            # Get source and destination from the rule
+            rule_sources = rule.get('source_address', [])
+            rule_dests = rule.get('destination_address', [])
+
+            # Normalize rule addresses
+            for src in rule_sources:
+                src_normalized = src.split('/')[0].lower().strip()
+                for dst in rule_dests:
+                    dst_normalized = dst.split('/')[0].lower().strip()
+
+                    # Check if source and destination match
+                    if src_normalized == source_normalized and dst_normalized == dest_normalized:
+                        return True, {
+                            'rule_name': rule.get('rule_name'),
+                            'file': os.path.basename(rule_file),
+                            'source': rule_sources,
+                            'destination': rule_dests,
+                            'action': rule.get('action')
+                        }
+        except (json.JSONDecodeError, IOError):
+            continue
+
+    return False, None
+
+
 @app.route('/api/netbox/check-duplicate')
 def api_netbox_check_duplicate():
-    """Check if a rule already exists"""
-    source_ip = request.args.get('source_ip')
-    dest_ip = request.args.get('dest_ip')
+    """Check if a rule already exists in firewall-rules directory or NetBox"""
+    source_ip = request.args.get('source_ip', '').strip()
+    dest_ip = request.args.get('dest_ip', '').strip()
 
     if not source_ip or not dest_ip:
         return jsonify({'duplicate': False})
 
+    # First check firewall-rules directory
+    is_duplicate, existing_rule = check_existing_rules(source_ip, dest_ip)
+
+    if is_duplicate:
+        return jsonify({
+            'duplicate': True,
+            'existing_rule': existing_rule,
+            'source': 'firewall-rules'
+        })
+
+    # Then check NetBox
     is_duplicate, existing_rule = netbox.check_duplicate_rule(source_ip, dest_ip)
 
     return jsonify({
         'duplicate': is_duplicate,
-        'existing_rule': existing_rule
+        'existing_rule': existing_rule,
+        'source': 'netbox' if is_duplicate else None
     })
 
 

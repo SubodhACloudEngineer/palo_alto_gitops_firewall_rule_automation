@@ -857,10 +857,36 @@
             return select.value;
         }
 
+        // Check if value represents "any" (0.0.0.0/0, any, etc.)
+        function isAnyAddress(value) {
+            if (!value) return false;
+            const normalized = value.toLowerCase().trim();
+            return normalized === 'any' ||
+                   normalized === '0.0.0.0/0' ||
+                   normalized === '0.0.0.0' ||
+                   normalized === '::/0' ||
+                   normalized === '::';
+        }
+
+        // Check for duplicate rules via API
+        async function checkDuplicateRule(sourceIp, destIp) {
+            try {
+                const response = await fetch(`/api/netbox/check-duplicate?source_ip=${encodeURIComponent(sourceIp)}&dest_ip=${encodeURIComponent(destIp)}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error checking duplicate:', error);
+                return { duplicate: false };
+            }
+        }
+
         // Form validation before submit
-        document.getElementById('firewall-form').addEventListener('submit', function(e) {
+        document.getElementById('firewall-form').addEventListener('submit', async function(e) {
+            e.preventDefault(); // Prevent form submission until all validations pass
+
             const sourceType = document.querySelector('input[name="source_type"]:checked').value;
             const destType = document.querySelector('input[name="destination_type"]:checked').value;
+            const action = document.querySelector('input[name="action"]:checked').value;
 
             // Check source is selected or entered
             let sourceValue = '';
@@ -881,7 +907,6 @@
             sourceValue = getFieldValue(sourceSelect, sourceManual);
 
             if (!sourceValue || sourceValue === '__manual__') {
-                e.preventDefault();
                 alert('Please select or enter a source ' + sourceType);
                 return;
             }
@@ -905,7 +930,6 @@
             destValue = getFieldValue(destSelect, destManual);
 
             if (!destValue || destValue === '__manual__') {
-                e.preventDefault();
                 alert('Please select or enter a destination ' + destType);
                 return;
             }
@@ -913,9 +937,52 @@
             // Check at least one service is selected
             const services = document.querySelectorAll('input[name="service"]:checked');
             if (services.length === 0) {
-                e.preventDefault();
                 alert('Please select at least one service/application');
                 return;
+            }
+
+            // SECURITY CHECK: Block "Allow Any to Any" rules
+            if (action === 'allow' && isAnyAddress(sourceValue) && isAnyAddress(destValue)) {
+                alert('⚠️ SECURITY RISK: Implicit Allow All is a cybersecurity RISK!\n\nCreating a rule that allows traffic from ANY source to ANY destination is extremely dangerous and violates security best practices.\n\nPlease change the rule to specify specific source and/or destination addresses.');
+                return;
+            }
+
+            // Check for duplicate rules
+            const submitBtn = document.getElementById('submit-btn');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.textContent = 'Checking for duplicates...';
+            submitBtn.disabled = true;
+
+            try {
+                const duplicateCheck = await checkDuplicateRule(sourceValue, destValue);
+
+                if (duplicateCheck.duplicate) {
+                    const existingRule = duplicateCheck.existing_rule;
+                    const ruleName = existingRule ? existingRule.rule_name : 'Unknown';
+                    const ruleAction = existingRule ? existingRule.action : 'Unknown';
+
+                    alert(`⚠️ DUPLICATE RULE DETECTED!\n\nA rule with the same source and destination already exists:\n\n` +
+                          `• Rule Name: ${ruleName}\n` +
+                          `• Action: ${ruleAction}\n` +
+                          `• Source: ${sourceValue}\n` +
+                          `• Destination: ${destValue}\n\n` +
+                          `Please modify your rule's source or destination to avoid duplication.`);
+
+                    submitBtn.textContent = originalBtnText;
+                    submitBtn.disabled = false;
+                    return;
+                }
+
+                // All validations passed, submit the form
+                submitBtn.textContent = 'Submitting...';
+                this.submit();
+
+            } catch (error) {
+                console.error('Validation error:', error);
+                submitBtn.textContent = originalBtnText;
+                submitBtn.disabled = false;
+                // Still submit if duplicate check fails (fail-open for UX)
+                this.submit();
             }
         });
     </script>
