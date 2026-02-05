@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ service.service_name }} - NTT DATA</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #0078D4 0%, #004A8F 100%);
+            padding: 30px 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .logo { height: 50px; width: auto; }
+        .header-title h1 { color: white; font-size: 24px; font-weight: 600; }
+        .header-title p { color: rgba(255,255,255,0.8); font-size: 14px; margin-top: 5px; }
+        .content { padding: 40px; }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #0067B1;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-link:hover { text-decoration: underline; }
+        .service-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #E6F3FF 0%, #CCE5FF 100%);
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #0078D4;
+        }
+        .service-badge-icon { font-size: 28px; }
+        .service-badge-text h3 { color: #0078D4; font-size: 18px; }
+        .service-badge-text p { color: #666; font-size: 13px; }
+        .form-section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .form-section h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0078D4;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .form-row.full-width { grid-template-columns: 1fr; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        .form-group label .required { color: #dc3545; margin-left: 3px; }
+        .form-group small {
+            display: block;
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        .form-group input[type="text"],
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: #0078D4;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0,120,212,0.1);
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 15px;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .checkbox-item:hover { border-color: #0078D4; }
+        .checkbox-item.checked {
+            border-color: #0078D4;
+            background: #E6F3FF;
+        }
+        .checkbox-item input { margin: 0; }
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .radio-item:hover { border-color: #0078D4; }
+        .radio-item.selected {
+            border-color: #0078D4;
+            background: #E6F3FF;
+        }
+        .radio-item input { margin: 0; }
+        .submit-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 30px;
+        }
+        .btn {
+            padding: 14px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0078D4 0%, #004A8F 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,120,212,0.3);
+        }
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-secondary:hover { background: #d0d0d0; }
+        .info-box {
+            background: #FFF3CD;
+            border: 1px solid #FFE69C;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .info-box.info { background: #E7F3FF; border-color: #B6D4FE; }
+        .info-box p { color: #664D03; font-size: 14px; }
+        .info-box.info p { color: #084298; }
+        .cost-estimate {
+            background: #E8F5E9;
+            border: 1px solid #A5D6A7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .cost-estimate h4 { color: #2E7D32; margin-bottom: 10px; }
+        .cost-estimate p { color: #1B5E20; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="NTT DATA" class="logo" onerror="this.src='{{ url_for('static', filename='images/logo.png') }}'">
+            <div class="header-title">
+                <h1>{{ service.service_name }}</h1>
+                <p>Provision Azure infrastructure using Terraform GitOps</p>
+            </div>
+        </div>
+
+        <div class="content">
+            <a href="/new_request" class="back-link">← Back to Service Catalog</a>
+
+            <div class="service-badge">
+                <span class="service-badge-icon">{{ service.icon }}</span>
+                <div class="service-badge-text">
+                    <h3>{{ service.service_name }}</h3>
+                    <p>{{ service.description }}</p>
+                </div>
+            </div>
+
+            <div class="info-box info">
+                <p><strong>GitOps Deployment:</strong> This form will generate Terraform configuration, commit it to Git, and trigger automated deployment via CI/CD pipeline.</p>
+            </div>
+
+            <form id="azureVmForm" action="/submit_request/{{ service.service_id }}" method="POST">
+                <!-- Requester Information -->
+                <div class="form-section">
+                    <h3>📋 Request Information</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Requester Name <span class="required">*</span></label>
+                            <input type="text" name="requester" required placeholder="Your name">
+                        </div>
+                        <div class="form-group">
+                            <label>Deployment Name <span class="required">*</span></label>
+                            <input type="text" name="deployment_name" required placeholder="e.g., webapp-prod-deployment" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only">
+                            <small>Unique identifier for this deployment (lowercase, no spaces)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Azure Resource Group -->
+                <div class="form-section">
+                    <h3>☁️ Azure Resources</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Resource Group Name <span class="required">*</span></label>
+                            <input type="text" name="resource_group" required placeholder="e.g., rg-webapp-prod-eastus">
+                            <small>Will be created if it doesn't exist</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Azure Region <span class="required">*</span></label>
+                            <select name="location" required>
+                                <option value="">Select a region</option>
+                                <option value="eastus">East US</option>
+                                <option value="eastus2">East US 2</option>
+                                <option value="westus">West US</option>
+                                <option value="westus2">West US 2</option>
+                                <option value="centralus">Central US</option>
+                                <option value="northeurope">North Europe</option>
+                                <option value="westeurope">West Europe</option>
+                                <option value="uksouth">UK South</option>
+                                <option value="southeastasia">Southeast Asia</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VM Configuration -->
+                <div class="form-section">
+                    <h3>💻 Virtual Machine Configuration</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Number of VMs <span class="required">*</span></label>
+                            <select name="vm_count" required id="vmCount">
+                                <option value="1">1 VM</option>
+                                <option value="2">2 VMs</option>
+                                <option value="3">3 VMs</option>
+                                <option value="5">5 VMs</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>VM Name Prefix <span class="required">*</span></label>
+                            <input type="text" name="vm_name_prefix" required placeholder="e.g., web-server" pattern="[a-z0-9-]+" title="Lowercase letters, numbers, and hyphens only">
+                            <small>VMs will be named: prefix-01, prefix-02, etc.</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>VM Size <span class="required">*</span></label>
+                            <select name="vm_size" required id="vmSize">
+                                <option value="Standard_B1s">Standard B1s (1 vCPU, 1GB) - Dev/Test</option>
+                                <option value="Standard_B2s" selected>Standard B2s (2 vCPU, 4GB) - Small</option>
+                                <option value="Standard_D2s_v3">Standard D2s v3 (2 vCPU, 8GB) - Medium</option>
+                                <option value="Standard_D4s_v3">Standard D4s v3 (4 vCPU, 16GB) - Large</option>
+                                <option value="Standard_D8s_v3">Standard D8s v3 (8 vCPU, 32GB) - XLarge</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Operating System <span class="required">*</span></label>
+                            <select name="os_type" required id="osType">
+                                <option value="ubuntu_22_04" selected>Ubuntu 22.04 LTS</option>
+                                <option value="ubuntu_20_04">Ubuntu 20.04 LTS</option>
+                                <option value="windows_server_2022">Windows Server 2022</option>
+                                <option value="windows_server_2019">Windows Server 2019</option>
+                                <option value="rhel_9">Red Hat Enterprise Linux 9</option>
+                                <option value="rhel_8">Red Hat Enterprise Linux 8</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Admin Username <span class="required">*</span></label>
+                            <input type="text" name="admin_username" required placeholder="e.g., azureadmin" value="azureadmin">
+                            <small>SSH/RDP login username</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Network Configuration -->
+                <div class="form-section">
+                    <h3>🌐 Network Configuration</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>VNet Address Space <span class="required">*</span></label>
+                            <input type="text" name="vnet_address_space" required placeholder="e.g., 10.0.0.0/16" value="10.0.0.0/16" pattern="\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}">
+                            <small>CIDR block for the Virtual Network</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Subnet Address Prefix <span class="required">*</span></label>
+                            <input type="text" name="subnet_address_prefix" required placeholder="e.g., 10.0.1.0/24" value="10.0.1.0/24" pattern="\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2}">
+                            <small>CIDR block for the Subnet (must be within VNet)</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Network Security Rules</label>
+                        <div class="checkbox-group" id="nsgRules">
+                            <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                                <input type="checkbox" name="nsg_rules" value="ssh">
+                                <span>🔐 SSH (Port 22)</span>
+                            </label>
+                            <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                                <input type="checkbox" name="nsg_rules" value="rdp">
+                                <span>🖥️ RDP (Port 3389)</span>
+                            </label>
+                            <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                                <input type="checkbox" name="nsg_rules" value="http">
+                                <span>🌐 HTTP (Port 80)</span>
+                            </label>
+                            <label class="checkbox-item" onclick="toggleCheckbox(this)">
+                                <input type="checkbox" name="nsg_rules" value="https">
+                                <span>🔒 HTTPS (Port 443)</span>
+                            </label>
+                        </div>
+                        <small>Select which ports to open in the Network Security Group</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Custom Ports (Optional)</label>
+                        <input type="text" name="custom_ports" placeholder="e.g., 8080,3000,5432">
+                        <small>Comma-separated list of additional TCP ports to open</small>
+                    </div>
+                </div>
+
+                <!-- Environment -->
+                <div class="form-section">
+                    <h3>🏷️ Environment & Tags</h3>
+                    <div class="form-group">
+                        <label>Environment <span class="required">*</span></label>
+                        <div class="radio-group" id="envRadio">
+                            <label class="radio-item" onclick="selectRadio(this)">
+                                <input type="radio" name="environment" value="dev" required>
+                                <span>🔧 Development</span>
+                            </label>
+                            <label class="radio-item" onclick="selectRadio(this)">
+                                <input type="radio" name="environment" value="staging">
+                                <span>🧪 Staging</span>
+                            </label>
+                            <label class="radio-item" onclick="selectRadio(this)">
+                                <input type="radio" name="environment" value="prod">
+                                <span>🚀 Production</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Business Justification -->
+                <div class="form-section">
+                    <h3>📝 Business Justification</h3>
+                    <div class="form-group">
+                        <label>Description <span class="required">*</span></label>
+                        <textarea name="description" rows="4" required placeholder="Explain the purpose of this deployment and any special requirements..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Cost Estimate -->
+                <div class="cost-estimate" id="costEstimate">
+                    <h4>💰 Estimated Monthly Cost</h4>
+                    <p id="costText">Select VM configuration to see estimate</p>
+                </div>
+
+                <!-- Submit -->
+                <div class="submit-section">
+                    <a href="/new_request" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">🚀 Submit Deployment Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Toggle checkbox styling
+        function toggleCheckbox(element) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            if (checkbox.checked) {
+                element.classList.add('checked');
+            } else {
+                element.classList.remove('checked');
+            }
+            updateNsgRecommendation();
+        }
+
+        // Select radio styling
+        function selectRadio(element) {
+            const radioGroup = element.parentElement;
+            radioGroup.querySelectorAll('.radio-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            element.classList.add('selected');
+            element.querySelector('input').checked = true;
+        }
+
+        // Update NSG recommendations based on OS
+        function updateNsgRecommendation() {
+            const osType = document.getElementById('osType').value;
+            const checkboxes = document.querySelectorAll('#nsgRules .checkbox-item');
+
+            // Auto-select SSH for Linux, RDP for Windows
+            checkboxes.forEach(cb => {
+                const input = cb.querySelector('input');
+                if (osType.includes('windows')) {
+                    if (input.value === 'rdp' && !input.checked) {
+                        input.checked = true;
+                        cb.classList.add('checked');
+                    }
+                } else {
+                    if (input.value === 'ssh' && !input.checked) {
+                        input.checked = true;
+                        cb.classList.add('checked');
+                    }
+                }
+            });
+        }
+
+        // Calculate estimated cost
+        function updateCostEstimate() {
+            const vmCount = parseInt(document.getElementById('vmCount').value) || 1;
+            const vmSize = document.getElementById('vmSize').value;
+
+            // Approximate monthly costs (USD)
+            const vmCosts = {
+                'Standard_B1s': 7.59,
+                'Standard_B2s': 30.37,
+                'Standard_D2s_v3': 70.08,
+                'Standard_D4s_v3': 140.16,
+                'Standard_D8s_v3': 280.32
+            };
+
+            const monthlyCost = (vmCosts[vmSize] || 30) * vmCount;
+            const costText = document.getElementById('costText');
+            costText.innerHTML = `<strong>~$${monthlyCost.toFixed(2)}/month</strong> for ${vmCount} × ${vmSize}<br><small>*Estimate only. Actual costs may vary based on usage, storage, and data transfer.</small>`;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('vmCount').addEventListener('change', updateCostEstimate);
+            document.getElementById('vmSize').addEventListener('change', updateCostEstimate);
+            document.getElementById('osType').addEventListener('change', updateNsgRecommendation);
+
+            updateCostEstimate();
+            updateNsgRecommendation();
+        });
+
+        // Form validation
+        document.getElementById('azureVmForm').addEventListener('submit', function(e) {
+            const deploymentName = document.querySelector('input[name="deployment_name"]').value;
+            if (!/^[a-z0-9-]+$/.test(deploymentName)) {
+                e.preventDefault();
+                alert('Deployment name must contain only lowercase letters, numbers, and hyphens.');
+                return;
+            }
+
+            // Check that at least one NSG rule or custom port is specified
+            const nsgRules = document.querySelectorAll('input[name="nsg_rules"]:checked');
+            const customPorts = document.querySelector('input[name="custom_ports"]').value;
+            if (nsgRules.length === 0 && !customPorts) {
+                if (!confirm('No network security rules selected. The VMs will not be accessible from the internet. Continue?')) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

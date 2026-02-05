@@ -45,6 +45,8 @@ PORTAL_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_CATALOG_PATH = os.path.join(PORTAL_DIR, "service_catalog")
 FIREWALL_RULES_PATH = os.path.join(BASE_DIR, "firewall-rules")
 PLAYBOOKS_PATH = os.path.join(BASE_DIR, "playbooks")
+TERRAFORM_TEMPLATES_PATH = os.path.join(BASE_DIR, "terraform", "azure-vm")
+TERRAFORM_DEPLOYMENTS_PATH = os.path.join(BASE_DIR, "terraform-deployments")
 
 # NetBox Configuration
 # Priority: Environment variable > .env file > None
@@ -232,6 +234,10 @@ def request_form(service_id):
     if service_id == 'palo_alto_firewall_rule':
         return render_template('firewall_rule_form.html', service=service, netbox_url=NETBOX_URL)
 
+    # For Azure VM, use specialized template
+    if service_id == 'azure_vm':
+        return render_template('azure_vm_form.html', service=service)
+
     return render_template('request_form.html', service=service)
 
 
@@ -286,6 +292,10 @@ def submit_request(service_id):
     # Special handling for firewall rules
     if service_id == 'palo_alto_firewall_rule':
         return handle_firewall_rule_request(service, requester, form_data)
+
+    # Special handling for Azure VM
+    if service_id == 'azure_vm':
+        return handle_azure_vm_request(service, requester, form_data)
 
     # Standard handling for other services
     request_counter += 1
@@ -733,6 +743,314 @@ def execute_ansible_deployment(service_request, rule_filepath):
             'message': f'Error: {str(e)}'
         })
         service_request['status'] = 'Failed'
+
+
+# ============================================
+# AZURE VM HANDLING
+# ============================================
+
+def handle_azure_vm_request(service, requester, form_data):
+    """Handle Azure VM submission with Terraform and Git integration"""
+    global request_counter
+
+    # Create service request
+    request_counter += 1
+    deployment_name = form_data.get('deployment_name', f'deployment-{request_counter}')
+
+    service_request = {
+        'id': f'SR-{request_counter}',
+        'type': service['service_name'],
+        'service_id': 'azure_vm',
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'status': 'Pending',
+        'requester': requester,
+        'details': form_data,
+        'deployment_name': deployment_name,
+        'terraform_enabled': service.get('terraform_enabled', True),
+        'git_enabled': service.get('git_enabled', True),
+        'logs': []
+    }
+
+    service_requests.insert(0, service_request)
+
+    # Execute Terraform deployment in background
+    thread = threading.Thread(target=execute_azure_vm_provisioning, args=(service_request,))
+    thread.daemon = True
+    thread.start()
+
+    return redirect(url_for('index'))
+
+
+def execute_azure_vm_provisioning(service_request):
+    """Execute Azure VM provisioning with Terraform and Git integration"""
+    try:
+        deployment_name = service_request['deployment_name']
+        details = service_request['details']
+
+        # Step 1: Create Terraform deployment directory
+        service_request['status'] = 'Generating Terraform'
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': 'Creating Terraform deployment configuration...'
+        })
+
+        deployment_dir = os.path.join(TERRAFORM_DEPLOYMENTS_PATH, deployment_name)
+        os.makedirs(deployment_dir, exist_ok=True)
+
+        # Step 2: Copy Terraform templates
+        import shutil
+        for tf_file in ['providers.tf', 'variables.tf', 'main.tf', 'outputs.tf']:
+            src_file = os.path.join(TERRAFORM_TEMPLATES_PATH, tf_file)
+            if os.path.exists(src_file):
+                shutil.copy(src_file, deployment_dir)
+
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Created deployment directory: {deployment_name}'
+        })
+
+        # Step 3: Generate terraform.tfvars
+        tfvars_content = generate_terraform_tfvars(service_request)
+        tfvars_path = os.path.join(deployment_dir, 'terraform.tfvars')
+
+        with open(tfvars_path, 'w') as f:
+            f.write(tfvars_content)
+
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': 'Generated terraform.tfvars configuration'
+        })
+
+        # Step 4: Git operations (if enabled)
+        git_success = False
+        if service_request.get('git_enabled'):
+            service_request['status'] = 'Committing to Git'
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': 'Adding Terraform configuration to Git repository...'
+            })
+
+            git_success = commit_terraform_to_git(service_request, deployment_dir, deployment_name)
+
+            if git_success:
+                service_request['logs'].append({
+                    'timestamp': datetime.now().strftime('%H:%M:%S'),
+                    'message': 'Terraform configuration committed to Git successfully'
+                })
+                service_request['logs'].append({
+                    'timestamp': datetime.now().strftime('%H:%M:%S'),
+                    'message': 'CI/CD pipeline will run terraform apply automatically'
+                })
+                service_request['status'] = 'Completed - Pending CI/CD'
+            else:
+                service_request['logs'].append({
+                    'timestamp': datetime.now().strftime('%H:%M:%S'),
+                    'message': 'Git commit failed'
+                })
+                service_request['status'] = 'Failed - Git Error'
+        else:
+            service_request['status'] = 'Completed - Manual Deployment Required'
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': f'Terraform configuration ready at: {deployment_dir}'
+            })
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': 'Run "terraform init && terraform apply" to deploy'
+            })
+
+    except Exception as e:
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Error: {str(e)}'
+        })
+        service_request['status'] = 'Failed'
+
+
+def generate_terraform_tfvars(service_request):
+    """Generate terraform.tfvars content from form data"""
+    details = service_request['details']
+
+    # Parse NSG rules
+    nsg_rules = details.get('nsg_rules', [])
+    if not isinstance(nsg_rules, list):
+        nsg_rules = [nsg_rules] if nsg_rules else []
+
+    tfvars = f'''# Terraform Variables for {service_request['deployment_name']}
+# Generated by Self-Service Portal
+# Request ID: {service_request['id']}
+# Requester: {service_request['requester']}
+# Timestamp: {service_request['timestamp']}
+
+# Deployment Settings
+deployment_name     = "{details.get('deployment_name', service_request['deployment_name'])}"
+resource_group_name = "{details.get('resource_group', 'rg-' + service_request['deployment_name'])}"
+location            = "{details.get('location', 'eastus')}"
+environment         = "{details.get('environment', 'dev')}"
+
+# VM Settings
+vm_count        = {details.get('vm_count', '1')}
+vm_name_prefix  = "{details.get('vm_name_prefix', 'vm')}"
+vm_size         = "{details.get('vm_size', 'Standard_B2s')}"
+os_type         = "{details.get('os_type', 'ubuntu_22_04')}"
+admin_username  = "{details.get('admin_username', 'azureadmin')}"
+
+# Network Settings
+vnet_address_space    = "{details.get('vnet_address_space', '10.0.0.0/16')}"
+subnet_address_prefix = "{details.get('subnet_address_prefix', '10.0.1.0/24')}"
+create_public_ip      = true
+
+# NSG Rules
+nsg_rules = {json.dumps(nsg_rules)}
+
+# Custom Ports
+custom_ports = "{details.get('custom_ports', '')}"
+
+# Metadata
+request_id  = "{service_request['id']}"
+requester   = "{service_request['requester']}"
+description = "{details.get('description', '').replace('"', '\\"')}"
+
+# Tags
+tags = {{
+  "Environment" = "{details.get('environment', 'dev')}"
+  "Project"     = "{details.get('deployment_name', 'azure-vm')}"
+  "ManagedBy"   = "Terraform"
+  "RequestId"   = "{service_request['id']}"
+  "Requester"   = "{service_request['requester']}"
+}}
+'''
+    return tfvars
+
+
+def commit_terraform_to_git(service_request, deployment_dir, deployment_name):
+    """Commit Terraform deployment to Git repository"""
+    try:
+        request_id = service_request['id']
+
+        # Branch name based on SR number
+        branch_name = f"azure-vm/{request_id}"
+
+        # Re-load .env file to get latest credentials
+        load_env_file()
+
+        # Get Git credentials
+        git_username = os.environ.get('GIT_USERNAME', '')
+        git_token = os.environ.get('GIT_TOKEN', '')
+
+        # Configure Git
+        subprocess.run(['git', 'config', 'user.name', GIT_USER_NAME],
+                      cwd=GIT_REPO_PATH, check=True, capture_output=True)
+        subprocess.run(['git', 'config', 'user.email', GIT_USER_EMAIL],
+                      cwd=GIT_REPO_PATH, check=True, capture_output=True)
+
+        # Get current remote URL
+        remote_result = subprocess.run(
+            ['git', 'remote', 'get-url', 'origin'],
+            cwd=GIT_REPO_PATH, capture_output=True, text=True
+        )
+        original_remote_url = remote_result.stdout.strip()
+        url_changed = False
+
+        # Build authenticated URL if credentials available
+        if git_username and git_token and 'github.com' in original_remote_url:
+            if original_remote_url.startswith('https://'):
+                auth_url = original_remote_url.replace(
+                    'https://github.com',
+                    f'https://{git_username}:{git_token}@github.com'
+                )
+            elif original_remote_url.startswith('git@'):
+                repo_path = original_remote_url.replace('git@github.com:', '').replace('.git', '')
+                auth_url = f'https://{git_username}:{git_token}@github.com/{repo_path}.git'
+            else:
+                auth_url = original_remote_url
+
+            subprocess.run(['git', 'remote', 'set-url', 'origin', auth_url],
+                          cwd=GIT_REPO_PATH, capture_output=True)
+            url_changed = True
+
+        # Fetch from origin
+        subprocess.run(['git', 'fetch', 'origin'], cwd=GIT_REPO_PATH, capture_output=True)
+
+        # Create new branch from main/master
+        base_branch = 'main'
+        check_main = subprocess.run(
+            ['git', 'rev-parse', '--verify', 'origin/main'],
+            cwd=GIT_REPO_PATH, capture_output=True
+        )
+        if check_main.returncode != 0:
+            base_branch = 'master'
+
+        subprocess.run(['git', 'checkout', '-b', branch_name, f'origin/{base_branch}'],
+                      cwd=GIT_REPO_PATH, check=True, capture_output=True)
+
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Created branch: {branch_name}'
+        })
+
+        # Git add the deployment directory
+        subprocess.run(['git', 'add', deployment_dir],
+                      cwd=GIT_REPO_PATH, check=True, capture_output=True)
+
+        # Git commit
+        commit_message = f"[{request_id}] Add Azure VM deployment: {deployment_name}\n\n" \
+                        f"Request ID: {request_id}\n" \
+                        f"Requester: {service_request['requester']}\n" \
+                        f"Resource Group: {service_request['details'].get('resource_group', 'N/A')}\n" \
+                        f"VM Count: {service_request['details'].get('vm_count', '1')}\n" \
+                        f"VM Size: {service_request['details'].get('vm_size', 'N/A')}\n" \
+                        f"OS: {service_request['details'].get('os_type', 'N/A')}"
+
+        subprocess.run(['git', 'commit', '-m', commit_message],
+                      cwd=GIT_REPO_PATH, check=True, capture_output=True)
+
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Committed with message: [{request_id}] Add Azure VM deployment'
+        })
+
+        # Git push
+        push_result = subprocess.run(
+            ['git', 'push', '-u', 'origin', branch_name],
+            cwd=GIT_REPO_PATH, capture_output=True, text=True
+        )
+
+        # Restore original remote URL
+        if url_changed:
+            subprocess.run(['git', 'remote', 'set-url', 'origin', original_remote_url],
+                          cwd=GIT_REPO_PATH, capture_output=True)
+
+        if push_result.returncode == 0:
+            service_request['git_commit'] = True
+            service_request['git_branch'] = branch_name
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': f'Successfully pushed to branch: {branch_name}'
+            })
+            return True
+        else:
+            service_request['git_error'] = push_result.stderr
+            service_request['logs'].append({
+                'timestamp': datetime.now().strftime('%H:%M:%S'),
+                'message': f'Push failed: {push_result.stderr}'
+            })
+            return False
+
+    except subprocess.CalledProcessError as e:
+        service_request['git_error'] = str(e)
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Git error: {str(e)}'
+        })
+        return False
+    except Exception as e:
+        service_request['git_error'] = str(e)
+        service_request['logs'].append({
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'message': f'Unexpected error: {str(e)}'
+        })
+        return False
 
 
 def execute_provisioning(service_request):
