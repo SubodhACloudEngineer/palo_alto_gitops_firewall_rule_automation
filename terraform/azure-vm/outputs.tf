@@ -123,7 +123,7 @@ output "connection_info" {
 
 output "deployment_summary" {
   description = "Summary of the deployment"
-  value = <<-EOT
+  value       = <<-EOT
     ============================================
     DEPLOYMENT SUMMARY
     ============================================

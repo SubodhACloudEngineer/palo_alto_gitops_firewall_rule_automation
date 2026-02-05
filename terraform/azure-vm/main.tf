@@ -6,12 +6,12 @@
 locals {
   # Common tags for all resources
   common_tags = merge(var.tags, {
-    Environment   = var.environment
-    ManagedBy     = "Terraform"
-    DeploymentId  = var.deployment_name
-    RequestId     = var.request_id
-    Requester     = var.requester
-    CreatedAt     = timestamp()
+    Environment  = var.environment
+    ManagedBy    = "Terraform"
+    DeploymentId = var.deployment_name
+    RequestId    = var.request_id
+    Requester    = var.requester
+    CreatedAt    = timestamp()
   })
 
   # Determine if Windows or Linux
