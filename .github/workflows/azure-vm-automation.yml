@@ -1,0 +1,290 @@
+name: Azure VM Terraform Automation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'terraform-deployments/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'terraform-deployments/**'
+  workflow_dispatch:
+    inputs:
+      deployment_name:
+        description: 'Specific deployment to apply'
+        required: false
+        type: string
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  TF_VERSION: "1.6.0"
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+
+jobs:
+  # ============================================
+  # STAGE 1: Detect Changed Deployments
+  # ============================================
+  detect-changes:
+    name: Detect Changed Deployments
+    runs-on: ubuntu-latest
+    outputs:
+      deployments: ${{ steps.get-deployments.outputs.deployments }}
+      deployment_count: ${{ steps.get-deployments.outputs.count }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed deployments
+        id: get-deployments
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.deployment_name }}" ]; then
+            # Manual trigger with specific deployment
+            DEPLOYMENTS='["${{ github.event.inputs.deployment_name }}"]'
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            # PR - get changed deployment directories
+            DEPLOYMENTS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'terraform-deployments/' | \
+              grep -o 'terraform-deployments/[^/]*' | sort -u | \
+              sed 's|terraform-deployments/||' | \
+              jq -R -s -c 'split("\n") | map(select(length > 0))')
+          else
+            # Push - get changed deployment directories
+            DEPLOYMENTS=$(git diff --name-only HEAD~1 -- 'terraform-deployments/' | \
+              grep -o 'terraform-deployments/[^/]*' | sort -u | \
+              sed 's|terraform-deployments/||' | \
+              jq -R -s -c 'split("\n") | map(select(length > 0))')
+          fi
+
+          if [ "$DEPLOYMENTS" == "null" ] || [ "$DEPLOYMENTS" == "[]" ]; then
+            DEPLOYMENTS='[]'
+            COUNT=0
+          else
+            COUNT=$(echo "$DEPLOYMENTS" | jq '. | length')
+          fi
+
+          echo "deployments=$DEPLOYMENTS" >> $GITHUB_OUTPUT
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "Changed deployments: $DEPLOYMENTS"
+          echo "Count: $COUNT"
+
+  # ============================================
+  # STAGE 2: Validate Terraform
+  # ============================================
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.deployment_count != '0'
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: terraform/azure-vm
+
+      - name: Terraform Init
+        run: |
+          terraform init -backend=false
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+  # ============================================
+  # STAGE 3: Terraform Plan
+  # ============================================
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.deployment_count != '0'
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Terraform Plan
+        run: |
+          terraform plan -out=tfplan -no-color 2>&1 | tee plan_output.txt
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.deployment }}
+          path: terraform-deployments/${{ matrix.deployment }}/tfplan
+
+      - name: Generate Plan Summary
+        run: |
+          echo "## Terraform Plan: ${{ matrix.deployment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -50 terraform-deployments/${{ matrix.deployment }}/plan_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 4: Terraform Apply (on push to main)
+  # ============================================
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: [detect-changes, plan]
+    if: |
+      needs.detect-changes.outputs.deployment_count != '0' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+    environment:
+      name: azure-production
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+      max-parallel: 1
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Download Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ matrix.deployment }}
+          path: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Terraform Apply
+        run: |
+          echo "Applying Terraform for deployment: ${{ matrix.deployment }}"
+          echo "================================================"
+          terraform apply -auto-approve tfplan
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Get Outputs
+        id: outputs
+        run: |
+          terraform output -json > deployment_outputs.json
+          cat deployment_outputs.json
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Generate Apply Summary
+        run: |
+          echo "## Deployment Complete: ${{ matrix.deployment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Success" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Outputs" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat terraform-deployments/${{ matrix.deployment }}/deployment_outputs.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 5: Terraform Destroy (manual only)
+  # ============================================
+  destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    environment:
+      name: azure-destroy
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Terraform Destroy
+        run: |
+          echo "DESTROYING deployment: ${{ matrix.deployment }}"
+          echo "================================================"
+          terraform destroy -auto-approve
+        working-directory: terraform-deployments/${{ matrix.deployment }}
+
+      - name: Generate Destroy Summary
+        run: |
+          echo "## Deployment Destroyed: ${{ matrix.deployment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Destroyed" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # STAGE 6: Notifications
+  # ============================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [apply]
+    if: always() && needs.apply.result != 'skipped'
+    steps:
+      - name: Notify on success
+        if: needs.apply.result == 'success'
+        run: |
+          echo "## Azure VM Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All Terraform deployments have been applied successfully." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failure
+        if: needs.apply.result == 'failure'
+        run: |
+          echo "## Azure VM Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "One or more Terraform deployments have failed." >> $GITHUB_STEP_SUMMARY
+          echo "Please check the workflow logs for details." >> $GITHUB_STEP_SUMMARY

@@ -1,17 +1,64 @@
 {
   "service_id": "azure_vm",
   "service_name": "Azure Virtual Machine",
-  "description": "Provision virtual machines on Microsoft Azure",
+  "description": "Provision virtual machines with VNet, Subnet, and NSG on Microsoft Azure using Terraform",
   "category": "Cloud",
   "icon": "☁️",
-  "playbook": "/home/subodhkashyap/azure-automation/provision_vm.yml",
+  "terraform_enabled": true,
+  "git_enabled": true,
   "fields": [
     {
-      "name": "vm_name",
-      "label": "VM Name",
+      "name": "deployment_name",
+      "label": "Deployment Name",
       "type": "text",
       "required": true,
-      "placeholder": "e.g., web-server-01"
+      "placeholder": "e.g., webapp-prod-deployment",
+      "description": "Unique name for this deployment (used for Terraform state)"
+    },
+    {
+      "name": "resource_group",
+      "label": "Resource Group Name",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., rg-webapp-prod-eastus",
+      "description": "Azure Resource Group (will be created if it doesn't exist)"
+    },
+    {
+      "name": "location",
+      "label": "Azure Region",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"value": "eastus", "label": "East US"},
+        {"value": "eastus2", "label": "East US 2"},
+        {"value": "westus", "label": "West US"},
+        {"value": "westus2", "label": "West US 2"},
+        {"value": "centralus", "label": "Central US"},
+        {"value": "northeurope", "label": "North Europe"},
+        {"value": "westeurope", "label": "West Europe"},
+        {"value": "uksouth", "label": "UK South"},
+        {"value": "southeastasia", "label": "Southeast Asia"}
+      ]
+    },
+    {
+      "name": "vm_count",
+      "label": "Number of VMs",
+      "type": "select",
+      "required": true,
+      "options": [
+        {"value": "1", "label": "1 VM"},
+        {"value": "2", "label": "2 VMs"},
+        {"value": "3", "label": "3 VMs"},
+        {"value": "5", "label": "5 VMs"}
+      ]
+    },
+    {
+      "name": "vm_name_prefix",
+      "label": "VM Name Prefix",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., web-server",
+      "description": "VMs will be named: prefix-01, prefix-02, etc."
     },
     {
       "name": "vm_size",
@@ -19,9 +66,11 @@
       "type": "select",
       "required": true,
       "options": [
-        {"value": "Standard_B2s", "label": "Standard B2s (2 vCPU, 4GB RAM)"},
-        {"value": "Standard_D2s_v3", "label": "Standard D2s v3 (2 vCPU, 8GB RAM)"},
-        {"value": "Standard_D4s_v3", "label": "Standard D4s v3 (4 vCPU, 16GB RAM)"}
+        {"value": "Standard_B1s", "label": "Standard B1s (1 vCPU, 1GB RAM) - Dev/Test"},
+        {"value": "Standard_B2s", "label": "Standard B2s (2 vCPU, 4GB RAM) - Small"},
+        {"value": "Standard_D2s_v3", "label": "Standard D2s v3 (2 vCPU, 8GB RAM) - Medium"},
+        {"value": "Standard_D4s_v3", "label": "Standard D4s v3 (4 vCPU, 16GB RAM) - Large"},
+        {"value": "Standard_D8s_v3", "label": "Standard D8s v3 (8 vCPU, 32GB RAM) - XLarge"}
       ]
     },
     {
@@ -31,16 +80,57 @@
       "required": true,
       "options": [
         {"value": "ubuntu_22_04", "label": "Ubuntu 22.04 LTS"},
+        {"value": "ubuntu_20_04", "label": "Ubuntu 20.04 LTS"},
         {"value": "windows_server_2022", "label": "Windows Server 2022"},
-        {"value": "rhel_9", "label": "Red Hat Enterprise Linux 9"}
+        {"value": "windows_server_2019", "label": "Windows Server 2019"},
+        {"value": "rhel_9", "label": "Red Hat Enterprise Linux 9"},
+        {"value": "rhel_8", "label": "Red Hat Enterprise Linux 8"}
       ]
     },
     {
-      "name": "resource_group",
-      "label": "Resource Group",
+      "name": "admin_username",
+      "label": "Admin Username",
       "type": "text",
       "required": true,
-      "placeholder": "e.g., prod-rg-eastus"
+      "placeholder": "e.g., azureadmin",
+      "description": "Administrator username for VM access"
+    },
+    {
+      "name": "vnet_address_space",
+      "label": "VNet Address Space",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., 10.0.0.0/16",
+      "description": "CIDR block for the Virtual Network"
+    },
+    {
+      "name": "subnet_address_prefix",
+      "label": "Subnet Address Prefix",
+      "type": "text",
+      "required": true,
+      "placeholder": "e.g., 10.0.1.0/24",
+      "description": "CIDR block for the Subnet (must be within VNet)"
+    },
+    {
+      "name": "nsg_rules",
+      "label": "Network Security Rules",
+      "type": "checkbox",
+      "required": false,
+      "options": [
+        {"value": "ssh", "label": "Allow SSH (Port 22)"},
+        {"value": "rdp", "label": "Allow RDP (Port 3389)"},
+        {"value": "http", "label": "Allow HTTP (Port 80)"},
+        {"value": "https", "label": "Allow HTTPS (Port 443)"},
+        {"value": "custom", "label": "Custom Ports (specify below)"}
+      ]
+    },
+    {
+      "name": "custom_ports",
+      "label": "Custom Ports",
+      "type": "text",
+      "required": false,
+      "placeholder": "e.g., 8080,3000,5432",
+      "description": "Comma-separated list of additional ports to open"
     },
     {
       "name": "environment",
@@ -58,7 +148,7 @@
       "label": "Business Justification",
       "type": "textarea",
       "required": true,
-      "rows": 4,
+      "rows": 3,
       "placeholder": "Explain the purpose and requirements..."
     }
   ]
