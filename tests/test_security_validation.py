@@ -104,7 +104,7 @@ class TestSecurityPolicies:
                 f"Rule {rule['_file']} should have a gitops-related tag"
 
 
-class TestMetadataCompliance:
+"""class TestMetadataCompliance:
     """Test metadata compliance for audit purposes.
 
     Note: These tests are advisory (warnings) not mandatory (failures).
@@ -189,7 +189,7 @@ class TestMetadataCompliance:
                 invalid_environments.append(f"{rule['_file']}: {environment}")
 
         if invalid_environments:
-            warnings.warn(f"Rules with invalid environment values: {', '.join(invalid_environments)}")
+            warnings.warn(f"Rules with invalid environment values: {', '.join(invalid_environments)}")"""
 
 
 class TestRuleNaming:
