@@ -105,14 +105,12 @@ class TestSecurityPolicies:
 
 
 """class TestMetadataCompliance:
-    """Test metadata compliance for audit purposes.
+    Test metadata compliance for audit purposes.
 
     Note: These tests are advisory (warnings) not mandatory (failures).
     Missing metadata fields will generate warnings but won't block deployment.
-    """
 
     def get_all_rules(self):
-        """Load all rule files excluding templates."""
         rules = []
         rule_files = get_rule_files()
         for rule_file in rule_files:
@@ -123,7 +121,6 @@ class TestSecurityPolicies:
         return rules
 
     def test_rules_have_metadata(self):
-        """Test that rules have metadata section (advisory)."""
         rules = self.get_all_rules()
         missing_metadata = []
 
@@ -135,7 +132,6 @@ class TestSecurityPolicies:
             warnings.warn(f"Rules missing metadata section: {', '.join(missing_metadata)}")
 
     def test_metadata_has_ticket_id(self):
-        """Test that metadata includes ticket ID for audit trail (advisory)."""
         rules = self.get_all_rules()
         missing_ticket_id = []
 
@@ -149,7 +145,6 @@ class TestSecurityPolicies:
             warnings.warn(f"Rules missing ticket_id in metadata: {', '.join(missing_ticket_id)}")
 
     def test_metadata_has_requested_by(self):
-        """Test that metadata includes who requested the rule (advisory)."""
         rules = self.get_all_rules()
         missing_requested_by = []
 
@@ -163,7 +158,6 @@ class TestSecurityPolicies:
             warnings.warn(f"Rules missing requested_by in metadata: {', '.join(missing_requested_by)}")
 
     def test_metadata_has_environment(self):
-        """Test that metadata includes target environment (advisory)."""
         rules = self.get_all_rules()
         missing_environment = []
 
@@ -177,7 +171,6 @@ class TestSecurityPolicies:
             warnings.warn(f"Rules missing environment in metadata: {', '.join(missing_environment)}")
 
     def test_valid_environment_values(self):
-        """Test that environment values are valid (advisory)."""
         valid_environments = ["production", "staging", "development", "all"]
         rules = self.get_all_rules()
         invalid_environments = []
