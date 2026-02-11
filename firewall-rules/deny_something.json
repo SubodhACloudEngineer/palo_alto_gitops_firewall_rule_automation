@@ -1,0 +1,40 @@
+{
+  "rule_name": "deny_something",
+  "description": "testing",
+  "source_zone": [
+    "dmz"
+  ],
+  "destination_zone": [
+    "trust"
+  ],
+  "source_address": [
+    "web01application"
+  ],
+  "destination_address": [
+    "user01workstation"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl",
+    "any"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "deny",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "test123",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-02-11 17:46:45",
+    "request_id": "SR-1001",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "testing"
+  }
+}
