@@ -1,0 +1,40 @@
+{
+  "rule_name": "allow_access_to_web_app01",
+  "description": "Test101",
+  "source_zone": [
+    "dmz"
+  ],
+  "destination_zone": [
+    "untrust"
+  ],
+  "source_address": [
+    "web01application"
+  ],
+  "destination_address": [
+    "user01workstation"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl",
+    "any"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "John",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-02-13 11:09:04",
+    "request_id": "SR-1001",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "Test101"
+  }
+}
