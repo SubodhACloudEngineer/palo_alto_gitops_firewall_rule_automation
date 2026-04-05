@@ -1,990 +1,741 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{ service.service_name }} - Self-Service Portal</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/logo.png') }}">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background-color: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
-            padding: 30px 40px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-        .logo {
-            height: 50px;
-            width: auto;
-        }
-        .header-content {
-            flex-grow: 1;
-        }
-        .header-title {
-            color: white;
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        .header-subtitle {
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 14px;
-        }
-        .service-icon-large {
-            font-size: 48px;
-        }
-        .content {
-            padding: 40px;
-        }
-        .back-link {
-            display: inline-block;
-            margin-bottom: 30px;
-            color: #0067B1;
-            text-decoration: none;
-            font-weight: 500;
-        }
-        .back-link:hover {
-            text-decoration: underline;
-        }
-        .info-box {
-            background-color: #E3F2FD;
-            border-left: 4px solid #0067B1;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 25px;
-        }
-        .info-box p {
-            color: #1565C0;
-            font-size: 14px;
-            margin: 0;
-        }
-        .warning-box {
-            background-color: #FFF3E0;
-            border-left: 4px solid #FF9800;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 25px;
-            display: none;
-        }
-        .warning-box.visible {
-            display: block;
-        }
-        .warning-box p {
-            color: #E65100;
-            font-size: 14px;
-            margin: 0;
-        }
-        #netbox-error {
-            background-color: #FFEBEE;
-            border-left: 4px solid #F44336;
-        }
-        #netbox-error p {
-            color: #C62828;
-        }
-        #netbox-error code {
-            background-color: #FFCDD2;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
-        }
-        .section-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #333;
-            margin: 30px 0 20px 0;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 25px;
-        }
-        .form-group {
-            margin-bottom: 25px;
-        }
-        .form-group.full-width {
-            grid-column: 1 / -1;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #333;
-            font-size: 14px;
-        }
-        .help-text {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-        input[type="text"],
-        select,
-        textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 6px;
-            font-size: 14px;
-            font-family: inherit;
-            transition: border-color 0.3s;
-        }
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: #0067B1;
-        }
-        select {
-            background-color: white;
-            cursor: pointer;
-        }
-        select:disabled {
-            background-color: #f5f5f5;
-            cursor: not-allowed;
-        }
-        .checkbox-group {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }
-        .checkbox-group label {
-            font-weight: normal;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .checkbox-group label:hover {
-            background-color: #f5f5f5;
-        }
-        .checkbox-group label.selected {
-            background-color: #E3F2FD;
-            border-color: #0067B1;
-        }
-        .checkbox-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-        .radio-group {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-        .radio-group label {
-            font-weight: normal;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .radio-group label:hover {
-            border-color: #0067B1;
-        }
-        .radio-group label.selected {
-            background-color: #E3F2FD;
-            border-color: #0067B1;
-        }
-        .radio-group input[type="radio"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-        .conditional-field {
-            display: none;
-        }
-        .conditional-field.visible {
-            display: block;
-        }
-        .loading-indicator {
-            color: #666;
-            font-size: 13px;
-            padding: 10px;
-        }
-        .button-group {
-            margin-top: 40px;
-            display: flex;
-            gap: 15px;
-        }
-        button {
-            padding: 14px 32px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-        button[type="submit"] {
-            background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
-            color: white;
-        }
-        button[type="submit"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 103, 177, 0.4);
-        }
-        button[type="submit"]:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .cancel-btn {
-            background-color: #757575;
-            color: white;
-        }
-        .cancel-btn:hover {
-            background-color: #616161;
-        }
-        .netbox-badge {
-            display: inline-block;
-            background-color: #4CAF50;
-            color: white;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 8px;
-            vertical-align: middle;
-        }
-        .manual-entry-container {
-            display: none;
-            margin-top: 10px;
-        }
-        .manual-entry-container.visible {
-            display: block;
-        }
-        .manual-entry-container input {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #FF9800;
-            border-radius: 6px;
-            font-size: 14px;
-            background-color: #FFF8E1;
-        }
-        .manual-entry-container input:focus {
-            outline: none;
-            border-color: #F57C00;
-        }
-        .manual-entry-hint {
-            font-size: 11px;
-            color: #F57C00;
-            margin-top: 4px;
-        }
-        select option[value="__manual__"] {
-            color: #FF9800;
-            font-style: italic;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="logo" onerror="this.src='{{ url_for('static', filename='images/logo.png') }}'">
-            <div class="header-content">
-                <div class="header-title">{{ service.service_name }}</div>
-                <div class="header-subtitle">{{ service.category }} | GitOps Firewall Automation</div>
-            </div>
-            <div class="service-icon-large">{{ service.icon }}</div>
-        </div>
-
-        <div class="content">
-            <a href="/new_request" class="back-link">← Back to Service Catalog</a>
-
-            <div class="info-box">
-                <p><strong>NetBox Integration:</strong> Source and destination options are fetched from NetBox CMDB, which is synchronized with your Palo Alto firewall and Azure infrastructure.</p>
-            </div>
-
-            <div class="warning-box" id="netbox-error">
-                <p><strong>NetBox Connection Error:</strong> Unable to connect to NetBox.</p>
-            </div>
-
-            <div class="warning-box" id="duplicate-warning">
-                <p><strong>Warning:</strong> A similar rule may already exist. Please review before submitting.</p>
-            </div>
-
-            <form action="/submit_request/{{ service.service_id }}" method="POST" id="firewall-form">
-                <!-- Requester -->
-                <div class="form-group">
-                    <label for="requester">Requester Name *</label>
-                    <input type="text" id="requester" name="requester" required placeholder="Enter your name">
-                </div>
-
-                <!-- Target Firewall Selection -->
-                <div class="section-title">Target Firewall</div>
-
-                <div class="form-group">
-                    <label for="target_firewall">Select Firewall * <span class="netbox-badge">NetBox</span></label>
-                    <select id="target_firewall" name="target_firewall" required>
-                        <option value="">Loading firewalls from NetBox...</option>
-                    </select>
-                    <div class="help-text">Select the firewall where this rule will be deployed</div>
-                </div>
-
-                <!-- Rule Name -->
-                <div class="section-title">Rule Configuration</div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="rule_name">Rule Name *</label>
-                        <input type="text" id="rule_name" name="rule_name" required
-                               placeholder="e.g., Allow-WebServer-to-Database"
-                               pattern="[a-zA-Z0-9_-]+"
-                               title="Only letters, numbers, underscores and hyphens allowed">
-                        <div class="help-text">Descriptive name for this firewall rule (no spaces)</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="action">Action *</label>
-                        <div class="radio-group">
-                            <label class="selected">
-                                <input type="radio" name="action" value="allow" required checked>
-                                Allow
-                            </label>
-                            <label>
-                                <input type="radio" name="action" value="deny" required>
-                                Deny
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Source Configuration -->
-                <div class="section-title">Source</div>
-
-                <div class="form-group">
-                    <label>Source Type *</label>
-                    <div class="radio-group" id="source-type-group">
-                        <label class="selected">
-                            <input type="radio" name="source_type" value="vm" required checked>
-                            Virtual Machine
-                        </label>
-                        <label>
-                            <input type="radio" name="source_type" value="ip" required>
-                            IP Address
-                        </label>
-                        <label>
-                            <input type="radio" name="source_type" value="subnet" required>
-                            Subnet
-                        </label>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group conditional-field visible" id="source-vm-field">
-                        <label for="source_vm">Source VM <span class="netbox-badge">NetBox</span></label>
-                        <select id="source_vm" name="source_vm">
-                            <option value="">Loading VMs from NetBox...</option>
-                        </select>
-                        <div class="manual-entry-container" id="source_vm_manual_container">
-                            <input type="text" id="source_vm_manual" name="source_vm_manual"
-                                   placeholder="Enter VM name or IP address (e.g., 10.0.1.100 or my-server)">
-                            <div class="manual-entry-hint">Enter a valid IP address or hostname</div>
-                        </div>
-                        <div class="help-text">Select a VM from NetBox or enter manually</div>
-                    </div>
-
-                    <div class="form-group conditional-field" id="source-ip-field">
-                        <label for="source_ip">Source IP Address <span class="netbox-badge">NetBox</span></label>
-                        <select id="source_ip" name="source_ip">
-                            <option value="">Loading IPs from NetBox...</option>
-                        </select>
-                        <div class="manual-entry-container" id="source_ip_manual_container">
-                            <input type="text" id="source_ip_manual" name="source_ip_manual"
-                                   placeholder="Enter IP address (e.g., 10.0.1.100/32 or 192.168.1.50)">
-                            <div class="manual-entry-hint">Enter a valid IP address with optional CIDR notation</div>
-                        </div>
-                        <div class="help-text">Select an IP from NetBox or enter manually</div>
-                    </div>
-
-                    <div class="form-group conditional-field" id="source-subnet-field">
-                        <label for="source_subnet">Source Subnet <span class="netbox-badge">NetBox</span></label>
-                        <select id="source_subnet" name="source_subnet">
-                            <option value="">Loading subnets from NetBox...</option>
-                        </select>
-                        <div class="manual-entry-container" id="source_subnet_manual_container">
-                            <input type="text" id="source_subnet_manual" name="source_subnet_manual"
-                                   placeholder="Enter subnet in CIDR notation (e.g., 10.0.1.0/24)">
-                            <div class="manual-entry-hint">Enter a valid subnet in CIDR notation</div>
-                        </div>
-                        <div class="help-text">Select a subnet from NetBox or enter manually</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="source_zone">Source Zone *</label>
-                        <select id="source_zone" name="source_zone" required>
-                            <option value="">Select Zone</option>
-                            <option value="trust">Trust</option>
-                            <option value="dmz">DMZ</option>
-                            <option value="untrust">Untrust</option>
-                        </select>
-                        <div class="help-text">Security zone of the source</div>
-                    </div>
-                </div>
-
-                <!-- Destination Configuration -->
-                <div class="section-title">Destination</div>
-
-                <div class="form-group">
-                    <label>Destination Type *</label>
-                    <div class="radio-group" id="dest-type-group">
-                        <label class="selected">
-                            <input type="radio" name="destination_type" value="vm" required checked>
-                            Virtual Machine
-                        </label>
-                        <label>
-                            <input type="radio" name="destination_type" value="ip" required>
-                            IP Address
-                        </label>
-                        <label>
-                            <input type="radio" name="destination_type" value="subnet" required>
-                            Subnet
-                        </label>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group conditional-field visible" id="dest-vm-field">
-                        <label for="destination_vm">Destination VM <span class="netbox-badge">NetBox</span></label>
-                        <select id="destination_vm" name="destination_vm">
-                            <option value="">Loading VMs from NetBox...</option>
-                        </select>
-                        <div class="manual-entry-container" id="destination_vm_manual_container">
-                            <input type="text" id="destination_vm_manual" name="destination_vm_manual"
-                                   placeholder="Enter VM name or IP address (e.g., 10.0.1.100 or my-server)">
-                            <div class="manual-entry-hint">Enter a valid IP address or hostname</div>
-                        </div>
-                        <div class="help-text">Select a VM from NetBox or enter manually</div>
-                    </div>
-
-                    <div class="form-group conditional-field" id="dest-ip-field">
-                        <label for="destination_ip">Destination IP Address <span class="netbox-badge">NetBox</span></label>
-                        <select id="destination_ip" name="destination_ip">
-                            <option value="">Loading IPs from NetBox...</option>
-                        </select>
-                        <div class="manual-entry-container" id="destination_ip_manual_container">
-                            <input type="text" id="destination_ip_manual" name="destination_ip_manual"
-                                   placeholder="Enter IP address (e.g., 10.0.1.100/32 or 192.168.1.50)">
-                            <div class="manual-entry-hint">Enter a valid IP address with optional CIDR notation</div>
-                        </div>
-                        <div class="help-text">Select an IP from NetBox or enter manually</div>
-                    </div>
-
-                    <div class="form-group conditional-field" id="dest-subnet-field">
-                        <label for="destination_subnet">Destination Subnet <span class="netbox-badge">NetBox</span></label>
-                        <select id="destination_subnet" name="destination_subnet">
-                            <option value="">Loading subnets from NetBox...</option>
-                        </select>
-                        <div class="manual-entry-container" id="destination_subnet_manual_container">
-                            <input type="text" id="destination_subnet_manual" name="destination_subnet_manual"
-                                   placeholder="Enter subnet in CIDR notation (e.g., 10.0.1.0/24)">
-                            <div class="manual-entry-hint">Enter a valid subnet in CIDR notation</div>
-                        </div>
-                        <div class="help-text">Select a subnet from NetBox or enter manually</div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="destination_zone">Destination Zone *</label>
-                        <select id="destination_zone" name="destination_zone" required>
-                            <option value="">Select Zone</option>
-                            <option value="trust">Trust</option>
-                            <option value="dmz">DMZ</option>
-                            <option value="untrust">Untrust</option>
-                        </select>
-                        <div class="help-text">Security zone of the destination</div>
-                    </div>
-                </div>
-
-                <!-- Service/Application -->
-                <div class="section-title">Service / Application</div>
-
-                <div class="form-group">
-                    <label>Select Services to Allow *</label>
-                    <div class="checkbox-group">
-                        <label>
-                            <input type="checkbox" name="service" value="web-browsing" checked>
-                            HTTP (web-browsing)
-                        </label>
-                        <label>
-                            <input type="checkbox" name="service" value="ssl" checked>
-                            HTTPS (ssl)
-                        </label>
-                        <label>
-                            <input type="checkbox" name="service" value="ssh">
-                            SSH
-                        </label>
-                        <label>
-                            <input type="checkbox" name="service" value="dns">
-                            DNS
-                        </label>
-                        <label>
-                            <input type="checkbox" name="service" value="ping">
-                            Ping (ICMP)
-                        </label>
-                        <label>
-                            <input type="checkbox" name="service" value="any">
-                            Any (all traffic)
-                        </label>
-                    </div>
-                    <div class="help-text">Select one or more services/applications</div>
-                </div>
-
-                <!-- Business Justification -->
-                <div class="section-title">Business Justification</div>
-
-                <div class="form-group">
-                    <label for="description">Justification *</label>
-                    <textarea id="description" name="description" rows="4" required
-                              placeholder="Explain why this firewall rule is needed, what service it enables, and who approved it..."></textarea>
-                    <div class="help-text">Required for audit and compliance purposes</div>
-                </div>
-
-                <div class="button-group">
-                    <button type="submit" id="submit-btn">Submit Request</button>
-                    <a href="/new_request"><button type="button" class="cancel-btn">Cancel</button></a>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-        // Global error tracking
-        let netboxErrors = [];
-
-        // Load NetBox data on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadNetBoxFirewalls();
-            loadNetBoxDevices();
-            loadNetBoxIPs();
-            loadNetBoxPrefixes();
-            setupRadioListeners();
-            setupCheckboxListeners();
-        });
-
-        // Show error in the warning box
-        function showNetBoxError(error) {
-            if (!netboxErrors.includes(error)) {
-                netboxErrors.push(error);
-            }
-            const warningBox = document.getElementById('netbox-error');
-            warningBox.innerHTML = `<p><strong>NetBox Connection Error:</strong> ${error}</p>
-                <p style="margin-top: 10px; font-size: 12px;">
-                    To fix this, copy <code>env.example</code> to <code>.env</code> and set your NetBox token:<br>
-                    <code style="background: #fff3e0; padding: 2px 6px; margin-top: 5px; display: inline-block;">cp env.example .env && nano .env</code>
-                </p>`;
-            warningBox.classList.add('visible');
-        }
-
-        // Fetch Firewalls from NetBox
-        function loadNetBoxFirewalls() {
-            fetch('/api/netbox/firewalls')
-                .then(response => response.json())
-                .then(data => {
-                    const select = document.getElementById('target_firewall');
-
-                    // Check for errors
-                    if (data.error) {
-                        showNetBoxError(data.error);
-                        select.innerHTML = '<option value="">No firewalls available</option>';
-                        return;
-                    }
-
-                    const options = data.options || [];
-                    if (options.length === 0) {
-                        select.innerHTML = '<option value="">No firewalls found in NetBox</option>';
-                        return;
-                    }
-
-                    let optionsHtml = '<option value="">Select a firewall</option>';
-                    optionsHtml += options.map(fw => `<option value="${fw.value}">${fw.label}</option>`).join('');
-
-                    select.innerHTML = optionsHtml;
-                })
-                .catch(error => {
-                    console.error('Error loading firewalls:', error);
-                    document.getElementById('target_firewall').innerHTML = '<option value="">Error loading firewalls</option>';
-                });
-        }
-
-        // Setup manual entry toggle for a dropdown
-        function setupManualEntryToggle(selectId, manualContainerId) {
-            const select = document.getElementById(selectId);
-            const manualContainer = document.getElementById(manualContainerId);
-            const manualInput = manualContainer.querySelector('input');
-
-            select.addEventListener('change', function() {
-                if (this.value === '__manual__') {
-                    manualContainer.classList.add('visible');
-                    manualInput.focus();
-                } else {
-                    manualContainer.classList.remove('visible');
-                    manualInput.value = '';
-                }
-            });
-        }
-
-        // Fetch VMs from NetBox
-        function loadNetBoxDevices() {
-            fetch('/api/netbox/devices')
-                .then(response => response.json())
-                .then(data => {
-                    const sourceSelect = document.getElementById('source_vm');
-                    const destSelect = document.getElementById('destination_vm');
-
-                    // Check for errors
-                    if (data.error) {
-                        showNetBoxError(data.error);
-                        sourceSelect.innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
-                        destSelect.innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
-                        setupManualEntryToggle('source_vm', 'source_vm_manual_container');
-                        setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
-                        return;
-                    }
-
-                    const options = data.options || [];
-                    let optionsHtml = '<option value="">Select a VM</option>';
-
-                    if (options.length > 0) {
-                        optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
-                    }
-
-                    // Always add manual entry option
-                    optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
-
-                    sourceSelect.innerHTML = optionsHtml;
-                    destSelect.innerHTML = optionsHtml;
-
-                    // Setup toggle for manual entry
-                    setupManualEntryToggle('source_vm', 'source_vm_manual_container');
-                    setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
-                })
-                .catch(error => {
-                    console.error('Error loading devices:', error);
-                    document.getElementById('source_vm').innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
-                    document.getElementById('destination_vm').innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
-                    setupManualEntryToggle('source_vm', 'source_vm_manual_container');
-                    setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
-                });
-        }
-
-        // Fetch IPs from NetBox
-        function loadNetBoxIPs() {
-            fetch('/api/netbox/ip-addresses')
-                .then(response => response.json())
-                .then(data => {
-                    const sourceSelect = document.getElementById('source_ip');
-                    const destSelect = document.getElementById('destination_ip');
-
-                    // Check for errors
-                    if (data.error) {
-                        showNetBoxError(data.error);
-                        sourceSelect.innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
-                        destSelect.innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
-                        setupManualEntryToggle('source_ip', 'source_ip_manual_container');
-                        setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
-                        return;
-                    }
-
-                    const options = data.options || [];
-                    let optionsHtml = '<option value="">Select an IP</option>';
-
-                    if (options.length > 0) {
-                        optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
-                    }
-
-                    // Always add manual entry option
-                    optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
-
-                    sourceSelect.innerHTML = optionsHtml;
-                    destSelect.innerHTML = optionsHtml;
-
-                    // Setup toggle for manual entry
-                    setupManualEntryToggle('source_ip', 'source_ip_manual_container');
-                    setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
-                })
-                .catch(error => {
-                    console.error('Error loading IPs:', error);
-                    document.getElementById('source_ip').innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
-                    document.getElementById('destination_ip').innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
-                    setupManualEntryToggle('source_ip', 'source_ip_manual_container');
-                    setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
-                });
-        }
-
-        // Fetch Prefixes from NetBox
-        function loadNetBoxPrefixes() {
-            fetch('/api/netbox/prefixes')
-                .then(response => response.json())
-                .then(data => {
-                    const sourceSelect = document.getElementById('source_subnet');
-                    const destSelect = document.getElementById('destination_subnet');
-
-                    // Check for errors
-                    if (data.error) {
-                        showNetBoxError(data.error);
-                        sourceSelect.innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
-                        destSelect.innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
-                        setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
-                        setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
-                        return;
-                    }
-
-                    const options = data.options || [];
-                    let optionsHtml = '<option value="">Select a Subnet</option>';
-
-                    if (options.length > 0) {
-                        optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
-                    }
-
-                    // Always add manual entry option
-                    optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
-
-                    sourceSelect.innerHTML = optionsHtml;
-                    destSelect.innerHTML = optionsHtml;
-
-                    // Setup toggle for manual entry
-                    setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
-                    setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
-                })
-                .catch(error => {
-                    console.error('Error loading prefixes:', error);
-                    document.getElementById('source_subnet').innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
-                    document.getElementById('destination_subnet').innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
-                    setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
-                    setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
-                });
-        }
-
-        // Setup radio button listeners for conditional fields
-        function setupRadioListeners() {
-            // Source type
-            document.querySelectorAll('input[name="source_type"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    updateConditionalFields('source', this.value);
-                    updateRadioStyles('source-type-group', this);
-                });
-            });
-
-            // Destination type
-            document.querySelectorAll('input[name="destination_type"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    updateConditionalFields('dest', this.value);
-                    updateRadioStyles('dest-type-group', this);
-                });
-            });
-
-            // Action radio
-            document.querySelectorAll('input[name="action"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    updateRadioStyles(this.closest('.radio-group'), this);
-                });
-            });
-        }
-
-        // Update which conditional fields are visible
-        function updateConditionalFields(prefix, type) {
-            const vmField = document.getElementById(`${prefix}-vm-field`);
-            const ipField = document.getElementById(`${prefix}-ip-field`);
-            const subnetField = document.getElementById(`${prefix}-subnet-field`);
-
-            vmField.classList.remove('visible');
-            ipField.classList.remove('visible');
-            subnetField.classList.remove('visible');
-
-            if (type === 'vm') {
-                vmField.classList.add('visible');
-            } else if (type === 'ip') {
-                ipField.classList.add('visible');
-            } else if (type === 'subnet') {
-                subnetField.classList.add('visible');
-            }
-        }
-
-        // Update radio button visual styles
-        function updateRadioStyles(groupId, selectedRadio) {
-            const group = typeof groupId === 'string' ? document.getElementById(groupId) : groupId;
-            group.querySelectorAll('label').forEach(label => {
-                label.classList.remove('selected');
-            });
-            selectedRadio.closest('label').classList.add('selected');
-        }
-
-        // Setup checkbox listeners for visual feedback
-        function setupCheckboxListeners() {
-            document.querySelectorAll('.checkbox-group input[type="checkbox"]').forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    if (this.checked) {
-                        this.closest('label').classList.add('selected');
-                    } else {
-                        this.closest('label').classList.remove('selected');
-                    }
-                });
-
-                // Set initial state
-                if (checkbox.checked) {
-                    checkbox.closest('label').classList.add('selected');
-                }
-            });
-        }
-
-        // Helper function to get value from dropdown or manual entry
-        function getFieldValue(selectId, manualInputId) {
-            const select = document.getElementById(selectId);
-            const manualInput = document.getElementById(manualInputId);
-
-            if (select.value === '__manual__') {
-                return manualInput.value.trim();
-            }
-            return select.value;
-        }
-
-        // Check if value represents "any" (0.0.0.0/0, any, etc.)
-        function isAnyAddress(value) {
-            if (!value) return false;
-            const normalized = value.toLowerCase().trim();
-            return normalized === 'any' ||
-                   normalized === '0.0.0.0/0' ||
-                   normalized === '0.0.0.0' ||
-                   normalized === '::/0' ||
-                   normalized === '::';
-        }
-
-        // Check for duplicate rules via API
-        async function checkDuplicateRule(sourceIp, destIp) {
-            try {
-                const response = await fetch(`/api/netbox/check-duplicate?source_ip=${encodeURIComponent(sourceIp)}&dest_ip=${encodeURIComponent(destIp)}`);
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error checking duplicate:', error);
-                return { duplicate: false };
-            }
-        }
-
-        // Form validation before submit
-        document.getElementById('firewall-form').addEventListener('submit', async function(e) {
-            e.preventDefault(); // Prevent form submission until all validations pass
-
-            const sourceType = document.querySelector('input[name="source_type"]:checked').value;
-            const destType = document.querySelector('input[name="destination_type"]:checked').value;
-            const action = document.querySelector('input[name="action"]:checked').value;
-
-            // Check source is selected or entered
-            let sourceValue = '';
-            let sourceSelect = '';
-            let sourceManual = '';
-
-            if (sourceType === 'vm') {
-                sourceSelect = 'source_vm';
-                sourceManual = 'source_vm_manual';
-            } else if (sourceType === 'ip') {
-                sourceSelect = 'source_ip';
-                sourceManual = 'source_ip_manual';
-            } else if (sourceType === 'subnet') {
-                sourceSelect = 'source_subnet';
-                sourceManual = 'source_subnet_manual';
-            }
-
-            sourceValue = getFieldValue(sourceSelect, sourceManual);
-
-            if (!sourceValue || sourceValue === '__manual__') {
-                alert('Please select or enter a source ' + sourceType);
-                return;
-            }
-
-            // Check destination is selected or entered
-            let destValue = '';
-            let destSelect = '';
-            let destManual = '';
-
-            if (destType === 'vm') {
-                destSelect = 'destination_vm';
-                destManual = 'destination_vm_manual';
-            } else if (destType === 'ip') {
-                destSelect = 'destination_ip';
-                destManual = 'destination_ip_manual';
-            } else if (destType === 'subnet') {
-                destSelect = 'destination_subnet';
-                destManual = 'destination_subnet_manual';
-            }
-
-            destValue = getFieldValue(destSelect, destManual);
-
-            if (!destValue || destValue === '__manual__') {
-                alert('Please select or enter a destination ' + destType);
-                return;
-            }
-
-            // Check at least one service is selected
-            const services = document.querySelectorAll('input[name="service"]:checked');
-            if (services.length === 0) {
-                alert('Please select at least one service/application');
-                return;
-            }
-
-            // SECURITY CHECK: Block "Allow Any to Any" rules
-            if (action === 'allow' && isAnyAddress(sourceValue) && isAnyAddress(destValue)) {
-                alert('⚠️ SECURITY RISK: Implicit Allow All is a cybersecurity RISK!\n\nCreating a rule that allows traffic from ANY source to ANY destination is extremely dangerous and violates security best practices.\n\nPlease change the rule to specify specific source and/or destination addresses.');
-                return;
-            }
-
-            // Check for duplicate rules
-            const submitBtn = document.getElementById('submit-btn');
-            const originalBtnText = submitBtn.textContent;
-            submitBtn.textContent = 'Checking for duplicates...';
-            submitBtn.disabled = true;
-
-            try {
-                const duplicateCheck = await checkDuplicateRule(sourceValue, destValue);
-
-                if (duplicateCheck.duplicate) {
-                    const existingRule = duplicateCheck.existing_rule;
-                    const ruleName = existingRule ? existingRule.rule_name : 'Unknown';
-                    const ruleAction = existingRule ? existingRule.action : 'Unknown';
-
-                    alert(`⚠️ DUPLICATE RULE DETECTED!\n\nA rule with the same source and destination already exists:\n\n` +
-                          `• Rule Name: ${ruleName}\n` +
-                          `• Action: ${ruleAction}\n` +
-                          `• Source: ${sourceValue}\n` +
-                          `• Destination: ${destValue}\n\n` +
-                          `Please modify your rule's source or destination to avoid duplication.`);
-
-                    submitBtn.textContent = originalBtnText;
-                    submitBtn.disabled = false;
+{% extends "base.html" %}
+
+{% block title %}{{ service.service_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Page-specific styles for firewall rule form */
+    .netbox-badge {
+        display: inline-block;
+        background-color: #4CAF50;
+        color: white;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-left: 8px;
+        vertical-align: middle;
+    }
+    .manual-entry-container {
+        display: none;
+        margin-top: 10px;
+    }
+    .manual-entry-container.visible {
+        display: block;
+    }
+    .manual-entry-container input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #FF9800;
+        border-radius: 6px;
+        font-size: 14px;
+        background-color: #FFF8E1;
+    }
+    .manual-entry-container input:focus {
+        outline: none;
+        border-color: #F57C00;
+    }
+    .manual-entry-hint {
+        font-size: 11px;
+        color: #F57C00;
+        margin-top: 4px;
+    }
+    select option[value="__manual__"] {
+        color: #FF9800;
+        font-style: italic;
+    }
+    /* Override checkbox-group for grid layout */
+    .checkbox-group.grid-layout {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+    .checkbox-group.grid-layout label {
+        padding: 10px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .checkbox-group.grid-layout label:hover {
+        background-color: #f5f5f5;
+    }
+    .checkbox-group.grid-layout label.selected {
+        background-color: #E3F2FD;
+        border-color: #0067B1;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global error tracking
+    let netboxErrors = [];
+
+    // Load NetBox data on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadNetBoxFirewalls();
+        loadNetBoxDevices();
+        loadNetBoxIPs();
+        loadNetBoxPrefixes();
+        setupRadioListeners();
+        setupCheckboxListeners();
+    });
+
+    // Show error in the warning box
+    function showNetBoxError(error) {
+        if (!netboxErrors.includes(error)) {
+            netboxErrors.push(error);
+        }
+        const warningBox = document.getElementById('netbox-error');
+        warningBox.innerHTML = `<p><strong>NetBox Connection Error:</strong> ${error}</p>
+            <p style="margin-top: 10px; font-size: 12px;">
+                To fix this, copy <code>env.example</code> to <code>.env</code> and set your NetBox token:<br>
+                <code style="background: #fff3e0; padding: 2px 6px; margin-top: 5px; display: inline-block;">cp env.example .env && nano .env</code>
+            </p>`;
+        warningBox.classList.add('visible');
+    }
+
+    // Fetch Firewalls from NetBox
+    function loadNetBoxFirewalls() {
+        fetch('/api/netbox/firewalls')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('target_firewall');
+
+                if (data.error) {
+                    showNetBoxError(data.error);
+                    select.innerHTML = '<option value="">No firewalls available</option>';
                     return;
                 }
 
-                // All validations passed, submit the form
-                submitBtn.textContent = 'Submitting...';
-                this.submit();
+                const options = data.options || [];
+                if (options.length === 0) {
+                    select.innerHTML = '<option value="">No firewalls found in NetBox</option>';
+                    return;
+                }
 
-            } catch (error) {
-                console.error('Validation error:', error);
-                submitBtn.textContent = originalBtnText;
-                submitBtn.disabled = false;
-                // Still submit if duplicate check fails (fail-open for UX)
-                this.submit();
+                let optionsHtml = '<option value="">Select a firewall</option>';
+                optionsHtml += options.map(fw => `<option value="${fw.value}">${fw.label}</option>`).join('');
+                select.innerHTML = optionsHtml;
+            })
+            .catch(error => {
+                console.error('Error loading firewalls:', error);
+                document.getElementById('target_firewall').innerHTML = '<option value="">Error loading firewalls</option>';
+            });
+    }
+
+    // Setup manual entry toggle for a dropdown
+    function setupManualEntryToggle(selectId, manualContainerId) {
+        const select = document.getElementById(selectId);
+        const manualContainer = document.getElementById(manualContainerId);
+        const manualInput = manualContainer.querySelector('input');
+
+        select.addEventListener('change', function() {
+            if (this.value === '__manual__') {
+                manualContainer.classList.add('visible');
+                manualInput.focus();
+            } else {
+                manualContainer.classList.remove('visible');
+                manualInput.value = '';
             }
         });
-    </script>
-</body>
-</html>
+    }
+
+    // Fetch VMs from NetBox
+    function loadNetBoxDevices() {
+        fetch('/api/netbox/devices')
+            .then(response => response.json())
+            .then(data => {
+                const sourceSelect = document.getElementById('source_vm');
+                const destSelect = document.getElementById('destination_vm');
+
+                if (data.error) {
+                    showNetBoxError(data.error);
+                    sourceSelect.innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                    destSelect.innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                    setupManualEntryToggle('source_vm', 'source_vm_manual_container');
+                    setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
+                    return;
+                }
+
+                const options = data.options || [];
+                let optionsHtml = '<option value="">Select a VM</option>';
+
+                if (options.length > 0) {
+                    optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                }
+
+                optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
+
+                sourceSelect.innerHTML = optionsHtml;
+                destSelect.innerHTML = optionsHtml;
+
+                setupManualEntryToggle('source_vm', 'source_vm_manual_container');
+                setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
+            })
+            .catch(error => {
+                console.error('Error loading devices:', error);
+                document.getElementById('source_vm').innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                document.getElementById('destination_vm').innerHTML = '<option value="">Select a VM</option><option value="__manual__">+ Enter manually...</option>';
+                setupManualEntryToggle('source_vm', 'source_vm_manual_container');
+                setupManualEntryToggle('destination_vm', 'destination_vm_manual_container');
+            });
+    }
+
+    // Fetch IPs from NetBox
+    function loadNetBoxIPs() {
+        fetch('/api/netbox/ip-addresses')
+            .then(response => response.json())
+            .then(data => {
+                const sourceSelect = document.getElementById('source_ip');
+                const destSelect = document.getElementById('destination_ip');
+
+                if (data.error) {
+                    showNetBoxError(data.error);
+                    sourceSelect.innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                    destSelect.innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                    setupManualEntryToggle('source_ip', 'source_ip_manual_container');
+                    setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
+                    return;
+                }
+
+                const options = data.options || [];
+                let optionsHtml = '<option value="">Select an IP</option>';
+
+                if (options.length > 0) {
+                    optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                }
+
+                optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
+
+                sourceSelect.innerHTML = optionsHtml;
+                destSelect.innerHTML = optionsHtml;
+
+                setupManualEntryToggle('source_ip', 'source_ip_manual_container');
+                setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
+            })
+            .catch(error => {
+                console.error('Error loading IPs:', error);
+                document.getElementById('source_ip').innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                document.getElementById('destination_ip').innerHTML = '<option value="">Select an IP</option><option value="__manual__">+ Enter manually...</option>';
+                setupManualEntryToggle('source_ip', 'source_ip_manual_container');
+                setupManualEntryToggle('destination_ip', 'destination_ip_manual_container');
+            });
+    }
+
+    // Fetch Prefixes from NetBox
+    function loadNetBoxPrefixes() {
+        fetch('/api/netbox/prefixes')
+            .then(response => response.json())
+            .then(data => {
+                const sourceSelect = document.getElementById('source_subnet');
+                const destSelect = document.getElementById('destination_subnet');
+
+                if (data.error) {
+                    showNetBoxError(data.error);
+                    sourceSelect.innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                    destSelect.innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                    setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
+                    setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
+                    return;
+                }
+
+                const options = data.options || [];
+                let optionsHtml = '<option value="">Select a Subnet</option>';
+
+                if (options.length > 0) {
+                    optionsHtml += options.map(d => `<option value="${d.value}">${d.label}</option>`).join('');
+                }
+
+                optionsHtml += '<option value="__manual__">+ Enter manually...</option>';
+
+                sourceSelect.innerHTML = optionsHtml;
+                destSelect.innerHTML = optionsHtml;
+
+                setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
+                setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
+            })
+            .catch(error => {
+                console.error('Error loading prefixes:', error);
+                document.getElementById('source_subnet').innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                document.getElementById('destination_subnet').innerHTML = '<option value="">Select a Subnet</option><option value="__manual__">+ Enter manually...</option>';
+                setupManualEntryToggle('source_subnet', 'source_subnet_manual_container');
+                setupManualEntryToggle('destination_subnet', 'destination_subnet_manual_container');
+            });
+    }
+
+    // Setup radio button listeners for conditional fields
+    function setupRadioListeners() {
+        document.querySelectorAll('input[name="source_type"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateConditionalFields('source', this.value);
+                updateRadioStyles('source-type-group', this);
+            });
+        });
+
+        document.querySelectorAll('input[name="destination_type"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateConditionalFields('dest', this.value);
+                updateRadioStyles('dest-type-group', this);
+            });
+        });
+
+        document.querySelectorAll('input[name="action"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                updateRadioStyles(this.closest('.radio-group'), this);
+            });
+        });
+    }
+
+    // Update which conditional fields are visible
+    function updateConditionalFields(prefix, type) {
+        const vmField = document.getElementById(`${prefix}-vm-field`);
+        const ipField = document.getElementById(`${prefix}-ip-field`);
+        const subnetField = document.getElementById(`${prefix}-subnet-field`);
+
+        vmField.classList.remove('visible');
+        ipField.classList.remove('visible');
+        subnetField.classList.remove('visible');
+
+        if (type === 'vm') {
+            vmField.classList.add('visible');
+        } else if (type === 'ip') {
+            ipField.classList.add('visible');
+        } else if (type === 'subnet') {
+            subnetField.classList.add('visible');
+        }
+    }
+
+    // Update radio button visual styles
+    function updateRadioStyles(groupId, selectedRadio) {
+        const group = typeof groupId === 'string' ? document.getElementById(groupId) : groupId;
+        group.querySelectorAll('label').forEach(label => {
+            label.classList.remove('selected');
+        });
+        selectedRadio.closest('label').classList.add('selected');
+    }
+
+    // Setup checkbox listeners for visual feedback
+    function setupCheckboxListeners() {
+        document.querySelectorAll('.checkbox-group input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    this.closest('label').classList.add('selected');
+                } else {
+                    this.closest('label').classList.remove('selected');
+                }
+            });
+
+            if (checkbox.checked) {
+                checkbox.closest('label').classList.add('selected');
+            }
+        });
+    }
+
+    // Helper function to get value from dropdown or manual entry
+    function getFieldValue(selectId, manualInputId) {
+        const select = document.getElementById(selectId);
+        const manualInput = document.getElementById(manualInputId);
+
+        if (select.value === '__manual__') {
+            return manualInput.value.trim();
+        }
+        return select.value;
+    }
+
+    // Check if value represents "any" (0.0.0.0/0, any, etc.)
+    function isAnyAddress(value) {
+        if (!value) return false;
+        const normalized = value.toLowerCase().trim();
+        return normalized === 'any' ||
+               normalized === '0.0.0.0/0' ||
+               normalized === '0.0.0.0' ||
+               normalized === '::/0' ||
+               normalized === '::';
+    }
+
+    // Check for duplicate rules via API
+    async function checkDuplicateRule(sourceIp, destIp) {
+        try {
+            const response = await fetch(`/api/netbox/check-duplicate?source_ip=${encodeURIComponent(sourceIp)}&dest_ip=${encodeURIComponent(destIp)}`);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error checking duplicate:', error);
+            return { duplicate: false };
+        }
+    }
+
+    // Form validation before submit
+    document.getElementById('firewall-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const sourceType = document.querySelector('input[name="source_type"]:checked').value;
+        const destType = document.querySelector('input[name="destination_type"]:checked').value;
+        const action = document.querySelector('input[name="action"]:checked').value;
+
+        let sourceValue = '';
+        let sourceSelect = '';
+        let sourceManual = '';
+
+        if (sourceType === 'vm') {
+            sourceSelect = 'source_vm';
+            sourceManual = 'source_vm_manual';
+        } else if (sourceType === 'ip') {
+            sourceSelect = 'source_ip';
+            sourceManual = 'source_ip_manual';
+        } else if (sourceType === 'subnet') {
+            sourceSelect = 'source_subnet';
+            sourceManual = 'source_subnet_manual';
+        }
+
+        sourceValue = getFieldValue(sourceSelect, sourceManual);
+
+        if (!sourceValue || sourceValue === '__manual__') {
+            alert('Please select or enter a source ' + sourceType);
+            return;
+        }
+
+        let destValue = '';
+        let destSelect = '';
+        let destManual = '';
+
+        if (destType === 'vm') {
+            destSelect = 'destination_vm';
+            destManual = 'destination_vm_manual';
+        } else if (destType === 'ip') {
+            destSelect = 'destination_ip';
+            destManual = 'destination_ip_manual';
+        } else if (destType === 'subnet') {
+            destSelect = 'destination_subnet';
+            destManual = 'destination_subnet_manual';
+        }
+
+        destValue = getFieldValue(destSelect, destManual);
+
+        if (!destValue || destValue === '__manual__') {
+            alert('Please select or enter a destination ' + destType);
+            return;
+        }
+
+        const services = document.querySelectorAll('input[name="service"]:checked');
+        if (services.length === 0) {
+            alert('Please select at least one service/application');
+            return;
+        }
+
+        if (action === 'allow' && isAnyAddress(sourceValue) && isAnyAddress(destValue)) {
+            alert('⚠️ SECURITY RISK: Implicit Allow All is a cybersecurity RISK!\n\nCreating a rule that allows traffic from ANY source to ANY destination is extremely dangerous and violates security best practices.\n\nPlease change the rule to specify specific source and/or destination addresses.');
+            return;
+        }
+
+        const submitBtn = document.getElementById('submit-btn');
+        const originalBtnText = submitBtn.textContent;
+        submitBtn.textContent = 'Checking for duplicates...';
+        submitBtn.disabled = true;
+
+        try {
+            const duplicateCheck = await checkDuplicateRule(sourceValue, destValue);
+
+            if (duplicateCheck.duplicate) {
+                const existingRule = duplicateCheck.existing_rule;
+                const ruleName = existingRule ? existingRule.rule_name : 'Unknown';
+                const ruleAction = existingRule ? existingRule.action : 'Unknown';
+
+                alert(`⚠️ DUPLICATE RULE DETECTED!\n\nA rule with the same source and destination already exists:\n\n` +
+                      `• Rule Name: ${ruleName}\n` +
+                      `• Action: ${ruleAction}\n` +
+                      `• Source: ${sourceValue}\n` +
+                      `• Destination: ${destValue}\n\n` +
+                      `Please modify your rule's source or destination to avoid duplication.`);
+
+                submitBtn.textContent = originalBtnText;
+                submitBtn.disabled = false;
+                return;
+            }
+
+            submitBtn.textContent = 'Submitting...';
+            this.submit();
+
+        } catch (error) {
+            console.error('Validation error:', error);
+            submitBtn.textContent = originalBtnText;
+            submitBtn.disabled = false;
+            this.submit();
+        }
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container medium">
+    <div class="header">
+        <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="logo" onerror="this.src='{{ url_for('static', filename='images/logo.png') }}'">
+        <div class="header-content">
+            <div class="header-title">
+                <h1>{{ service.service_name }}</h1>
+                <p>{{ service.category }} | GitOps Firewall Automation</p>
+            </div>
+        </div>
+        <div class="service-icon-large">{{ service.icon }}</div>
+    </div>
+
+    <div class="content">
+        <a href="/new_request" class="back-link">← Back to Service Catalog</a>
+
+        <div class="info-box">
+            <p><strong>NetBox Integration:</strong> Source and destination options are fetched from NetBox CMDB, which is synchronized with your Palo Alto firewall and Azure infrastructure.</p>
+        </div>
+
+        <div class="warning-box" id="netbox-error">
+            <p><strong>NetBox Connection Error:</strong> Unable to connect to NetBox.</p>
+        </div>
+
+        <div class="warning-box" id="duplicate-warning">
+            <p><strong>Warning:</strong> A similar rule may already exist. Please review before submitting.</p>
+        </div>
+
+        <form action="/submit_request/{{ service.service_id }}" method="POST" id="firewall-form">
+            <!-- Requester -->
+            <div class="form-group">
+                <label for="requester">Requester Name *</label>
+                <input type="text" id="requester" name="requester" required placeholder="Enter your name">
+            </div>
+
+            <!-- Target Firewall Selection -->
+            <div class="section-title">Target Firewall</div>
+
+            <div class="form-group">
+                <label for="target_firewall">Select Firewall * <span class="netbox-badge">NetBox</span></label>
+                <select id="target_firewall" name="target_firewall" required>
+                    <option value="">Loading firewalls from NetBox...</option>
+                </select>
+                <div class="help-text">Select the firewall where this rule will be deployed</div>
+            </div>
+
+            <!-- Rule Name -->
+            <div class="section-title">Rule Configuration</div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="rule_name">Rule Name *</label>
+                    <input type="text" id="rule_name" name="rule_name" required
+                           placeholder="e.g., Allow-WebServer-to-Database"
+                           pattern="[a-zA-Z0-9_-]+"
+                           title="Only letters, numbers, underscores and hyphens allowed">
+                    <div class="help-text">Descriptive name for this firewall rule (no spaces)</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="action">Action *</label>
+                    <div class="radio-group">
+                        <label class="selected">
+                            <input type="radio" name="action" value="allow" required checked>
+                            Allow
+                        </label>
+                        <label>
+                            <input type="radio" name="action" value="deny" required>
+                            Deny
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Source Configuration -->
+            <div class="section-title">Source</div>
+
+            <div class="form-group">
+                <label>Source Type *</label>
+                <div class="radio-group" id="source-type-group">
+                    <label class="selected">
+                        <input type="radio" name="source_type" value="vm" required checked>
+                        Virtual Machine
+                    </label>
+                    <label>
+                        <input type="radio" name="source_type" value="ip" required>
+                        IP Address
+                    </label>
+                    <label>
+                        <input type="radio" name="source_type" value="subnet" required>
+                        Subnet
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group conditional-field visible" id="source-vm-field">
+                    <label for="source_vm">Source VM <span class="netbox-badge">NetBox</span></label>
+                    <select id="source_vm" name="source_vm">
+                        <option value="">Loading VMs from NetBox...</option>
+                    </select>
+                    <div class="manual-entry-container" id="source_vm_manual_container">
+                        <input type="text" id="source_vm_manual" name="source_vm_manual"
+                               placeholder="Enter VM name or IP address (e.g., 10.0.1.100 or my-server)">
+                        <div class="manual-entry-hint">Enter a valid IP address or hostname</div>
+                    </div>
+                    <div class="help-text">Select a VM from NetBox or enter manually</div>
+                </div>
+
+                <div class="form-group conditional-field" id="source-ip-field">
+                    <label for="source_ip">Source IP Address <span class="netbox-badge">NetBox</span></label>
+                    <select id="source_ip" name="source_ip">
+                        <option value="">Loading IPs from NetBox...</option>
+                    </select>
+                    <div class="manual-entry-container" id="source_ip_manual_container">
+                        <input type="text" id="source_ip_manual" name="source_ip_manual"
+                               placeholder="Enter IP address (e.g., 10.0.1.100/32 or 192.168.1.50)">
+                        <div class="manual-entry-hint">Enter a valid IP address with optional CIDR notation</div>
+                    </div>
+                    <div class="help-text">Select an IP from NetBox or enter manually</div>
+                </div>
+
+                <div class="form-group conditional-field" id="source-subnet-field">
+                    <label for="source_subnet">Source Subnet <span class="netbox-badge">NetBox</span></label>
+                    <select id="source_subnet" name="source_subnet">
+                        <option value="">Loading subnets from NetBox...</option>
+                    </select>
+                    <div class="manual-entry-container" id="source_subnet_manual_container">
+                        <input type="text" id="source_subnet_manual" name="source_subnet_manual"
+                               placeholder="Enter subnet in CIDR notation (e.g., 10.0.1.0/24)">
+                        <div class="manual-entry-hint">Enter a valid subnet in CIDR notation</div>
+                    </div>
+                    <div class="help-text">Select a subnet from NetBox or enter manually</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="source_zone">Source Zone *</label>
+                    <select id="source_zone" name="source_zone" required>
+                        <option value="">Select Zone</option>
+                        <option value="trust">Trust</option>
+                        <option value="dmz">DMZ</option>
+                        <option value="untrust">Untrust</option>
+                    </select>
+                    <div class="help-text">Security zone of the source</div>
+                </div>
+            </div>
+
+            <!-- Destination Configuration -->
+            <div class="section-title">Destination</div>
+
+            <div class="form-group">
+                <label>Destination Type *</label>
+                <div class="radio-group" id="dest-type-group">
+                    <label class="selected">
+                        <input type="radio" name="destination_type" value="vm" required checked>
+                        Virtual Machine
+                    </label>
+                    <label>
+                        <input type="radio" name="destination_type" value="ip" required>
+                        IP Address
+                    </label>
+                    <label>
+                        <input type="radio" name="destination_type" value="subnet" required>
+                        Subnet
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group conditional-field visible" id="dest-vm-field">
+                    <label for="destination_vm">Destination VM <span class="netbox-badge">NetBox</span></label>
+                    <select id="destination_vm" name="destination_vm">
+                        <option value="">Loading VMs from NetBox...</option>
+                    </select>
+                    <div class="manual-entry-container" id="destination_vm_manual_container">
+                        <input type="text" id="destination_vm_manual" name="destination_vm_manual"
+                               placeholder="Enter VM name or IP address (e.g., 10.0.1.100 or my-server)">
+                        <div class="manual-entry-hint">Enter a valid IP address or hostname</div>
+                    </div>
+                    <div class="help-text">Select a VM from NetBox or enter manually</div>
+                </div>
+
+                <div class="form-group conditional-field" id="dest-ip-field">
+                    <label for="destination_ip">Destination IP Address <span class="netbox-badge">NetBox</span></label>
+                    <select id="destination_ip" name="destination_ip">
+                        <option value="">Loading IPs from NetBox...</option>
+                    </select>
+                    <div class="manual-entry-container" id="destination_ip_manual_container">
+                        <input type="text" id="destination_ip_manual" name="destination_ip_manual"
+                               placeholder="Enter IP address (e.g., 10.0.1.100/32 or 192.168.1.50)">
+                        <div class="manual-entry-hint">Enter a valid IP address with optional CIDR notation</div>
+                    </div>
+                    <div class="help-text">Select an IP from NetBox or enter manually</div>
+                </div>
+
+                <div class="form-group conditional-field" id="dest-subnet-field">
+                    <label for="destination_subnet">Destination Subnet <span class="netbox-badge">NetBox</span></label>
+                    <select id="destination_subnet" name="destination_subnet">
+                        <option value="">Loading subnets from NetBox...</option>
+                    </select>
+                    <div class="manual-entry-container" id="destination_subnet_manual_container">
+                        <input type="text" id="destination_subnet_manual" name="destination_subnet_manual"
+                               placeholder="Enter subnet in CIDR notation (e.g., 10.0.1.0/24)">
+                        <div class="manual-entry-hint">Enter a valid subnet in CIDR notation</div>
+                    </div>
+                    <div class="help-text">Select a subnet from NetBox or enter manually</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="destination_zone">Destination Zone *</label>
+                    <select id="destination_zone" name="destination_zone" required>
+                        <option value="">Select Zone</option>
+                        <option value="trust">Trust</option>
+                        <option value="dmz">DMZ</option>
+                        <option value="untrust">Untrust</option>
+                    </select>
+                    <div class="help-text">Security zone of the destination</div>
+                </div>
+            </div>
+
+            <!-- Service/Application -->
+            <div class="section-title">Service / Application</div>
+
+            <div class="form-group">
+                <label>Select Services to Allow *</label>
+                <div class="checkbox-group grid-layout">
+                    <label>
+                        <input type="checkbox" name="service" value="web-browsing" checked>
+                        HTTP (web-browsing)
+                    </label>
+                    <label>
+                        <input type="checkbox" name="service" value="ssl" checked>
+                        HTTPS (ssl)
+                    </label>
+                    <label>
+                        <input type="checkbox" name="service" value="ssh">
+                        SSH
+                    </label>
+                    <label>
+                        <input type="checkbox" name="service" value="dns">
+                        DNS
+                    </label>
+                    <label>
+                        <input type="checkbox" name="service" value="ping">
+                        Ping (ICMP)
+                    </label>
+                    <label>
+                        <input type="checkbox" name="service" value="any">
+                        Any (all traffic)
+                    </label>
+                </div>
+                <div class="help-text">Select one or more services/applications</div>
+            </div>
+
+            <!-- Business Justification -->
+            <div class="section-title">Business Justification</div>
+
+            <div class="form-group">
+                <label for="description">Justification *</label>
+                <textarea id="description" name="description" rows="4" required
+                          placeholder="Explain why this firewall rule is needed, what service it enables, and who approved it..."></textarea>
+                <div class="help-text">Required for audit and compliance purposes</div>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" id="submit-btn">Submit Request</button>
+                <a href="/new_request"><button type="button" class="cancel-btn">Cancel</button></a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

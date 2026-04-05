@@ -37,11 +37,15 @@ palo_alto_gitops_firewall_rule_automation/
 │   │   ├── azure_vm.json
 │   │   └── vlan_provisioning.json
 │   └── templates/
-│       ├── index.html
-│       ├── service_catalog.html
-│       ├── firewall_rule_form.html
-│       ├── azure_vm_form.html
-│       └── ...
+│       ├── base.html                   # Base template with shared CSS/nav (NEW)
+│       ├── index.html                  # Dashboard - extends base.html
+│       ├── service_catalog.html        # Service catalog - extends base.html
+│       ├── firewall_rule_form.html     # Firewall form - extends base.html
+│       ├── azure_vm_form.html          # Azure VM form - extends base.html
+│       ├── request_details.html        # Request details - extends base.html
+│       ├── request_form.html           # Generic form - extends base.html
+│       ├── new_request.html            # VLAN request - extends base.html
+│       └── error.html                  # Error page - extends base.html
 ├── terraform/
 │   └── azure-vm/
 │       ├── main.tf                     # VMs, VNet, Subnet, NSG resources
@@ -137,6 +141,13 @@ Ansible was removed from CI/CD because of unreliable collection installs (`paloa
 ### Firewall Rule Uniqueness
 Rules must have unique `rule_name` values. The portal checks for duplicates before committing. A duplicate file (`allow_vm1_to_vm2.json`) was deleted to fix earlier test failures.
 
+### Template Architecture
+All HTML templates now extend `templates/base.html` using Jinja2 template inheritance:
+- **`base.html`** — Contains all shared CSS, sidebar navigation, and defines blocks (`{% block title %}`, `{% block content %}`, `{% block extra_css %}`, `{% block extra_js %}`)
+- **Sidebar navigation** — Links to Dashboard, Service Catalog, Firewall Rules, Azure VMs, Deploy App (placeholder), and external NetBox CMDB
+- **Child templates** — Use `{% extends "base.html" %}` and override only the blocks they need
+- **Page-specific CSS/JS** — Placed in `{% block extra_css %}` and `{% block extra_js %}` blocks
+
 ---
 
 ## GitHub Secrets Required
@@ -226,6 +237,7 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 
 - [ ] Migrate Terraform state to Azure Storage Account (remote backend)
 - [ ] Add SSO/SAML authentication to portal
+- [x] Refactor templates to use `base.html` (completed)
 - [ ] Refactor `app.py` into Flask Blueprints (modular)
 - [ ] Add job queue (Celery + Redis) for async deployments
 - [ ] Integrate with ServiceNow or Jira for approval workflows
@@ -248,3 +260,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Azure VM feature | Added Terraform-based GitOps workflow for Azure VM provisioning |
 | Terraform format fix | Fixed `terraform fmt` compliance issues in `main.tf` and `outputs.tf` |
 | PE Review document | Created `docs/platform-engineering-review.md` for team meeting |
+| Template refactoring | Created `base.html` with shared CSS/nav; all templates now extend it with Jinja2 blocks |
