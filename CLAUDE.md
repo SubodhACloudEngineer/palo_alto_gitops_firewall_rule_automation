@@ -31,6 +31,7 @@ palo_alto_gitops_firewall_rule_automation/
 │   └── verify_deployment.py
 ├── self-service-portal/
 │   ├── app.py                          # Flask app (monolithic, 1400+ lines)
+│   ├── awx_client.py                   # AWX REST API client (NEW)
 │   ├── env.example                     # Copy to .env to configure locally
 │   ├── service_catalog/
 │   │   ├── service_catalog_palo_alto_firewall.json
@@ -98,6 +99,23 @@ palo_alto_gitops_firewall_rule_automation/
 - **Azure Tenant:** `75d69b80-844c-4077-b28a-cf2b59cc5187`
 - **Azure Subscription:** `8527d19f-1ff6-461c-a89e-da961a355bed`
 - State is **local** (demo) — migrate to Azure Storage before production
+
+### AWX Integration (NEW)
+- **Module:** `self-service-portal/awx_client.py`
+- Provides REST API client for AWX/Ansible Tower
+- **Functions:**
+  - `trigger_job(template_name, extra_vars)` — Launch job template by name, returns job_id
+  - `get_job_status(job_id)` — Returns `{"status": "pending|running|successful|failed", "finished": bool}`
+  - `stream_job_log(job_id)` — Generator that yields log lines and final status dict
+- **Configuration (env vars):**
+  ```
+  AWX_HOST=https://awx.example.com
+  AWX_TOKEN=<bearer token>
+  AWX_VERIFY_SSL=true
+  ```
+- Uses Bearer token auth: `Authorization: Bearer <AWX_TOKEN>`
+- 10 second request timeout, respects SSL verification setting
+- Includes CLI for testing: `python awx_client.py test`
 
 ---
 
@@ -261,3 +279,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Terraform format fix | Fixed `terraform fmt` compliance issues in `main.tf` and `outputs.tf` |
 | PE Review document | Created `docs/platform-engineering-review.md` for team meeting |
 | Template refactoring | Created `base.html` with shared CSS/nav; all templates now extend it with Jinja2 blocks |
+| AWX client module | Added `awx_client.py` with `trigger_job`, `get_job_status`, `stream_job_log` functions for AWX REST API |
