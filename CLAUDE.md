@@ -304,3 +304,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Template refactoring | Created `base.html` with shared CSS/nav; all templates now extend it with Jinja2 blocks |
 | AWX client module | Added `awx_client.py` with `trigger_job`, `get_job_status`, `stream_job_log` functions for AWX REST API |
 | Deploy application routes | Added `/deploy`, `/deploy` (POST), `/deploy/status/<job_id>` routes for app deployment via AWX |
+| Deploy template | Created `templates/deploy/deploy.html` with VM/OpenShift target cards, SSE log streaming, and portal-matching styles |
