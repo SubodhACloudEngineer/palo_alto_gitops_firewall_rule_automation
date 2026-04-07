@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .deploy-form {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        padding: 30px;
+        max-width: 700px;
+    }
+    .form-header {
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #0067B1;
+    }
+    .form-header h2 {
+        color: #333;
+        font-size: 24px;
+        margin-bottom: 5px;
+    }
+    .form-header p {
+        color: #666;
+        font-size: 14px;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #333;
+    }
+    .form-group label .required {
+        color: #dc3545;
+    }
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: #0067B1;
+        box-shadow: 0 0 0 3px rgba(0,103,177,0.1);
+    }
+    .form-group .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+    }
+    .target-options {
+        display: flex;
+        gap: 15px;
+    }
+    .target-option {
+        flex: 1;
+        padding: 20px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s;
+    }
+    .target-option:hover {
+        border-color: #0067B1;
+        background: #f8f9fa;
+    }
+    .target-option.selected {
+        border-color: #0067B1;
+        background: rgba(0,103,177,0.05);
+    }
+    .target-option input {
+        display: none;
+    }
+    .target-option .icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+    .target-option .label {
+        font-weight: 600;
+        color: #333;
+    }
+    .target-option .desc {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+    }
+    .conditional-field {
+        display: none;
+    }
+    .conditional-field.visible {
+        display: block;
+    }
+    .btn-deploy {
+        background: linear-gradient(135deg, #0067B1 0%, #004A8F 100%);
+        color: white;
+        border: none;
+        padding: 14px 30px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        width: 100%;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-deploy:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(0,103,177,0.3);
+    }
+    .btn-deploy:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    .log-output {
+        display: none;
+        margin-top: 25px;
+        background: #1e1e1e;
+        border-radius: 8px;
+        padding: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .log-output.visible {
+        display: block;
+    }
+    .log-output pre {
+        color: #d4d4d4;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        margin: 0;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+    .status-badge.running {
+        background: #fff3cd;
+        color: #856404;
+    }
+    .status-badge.successful {
+        background: #d4edda;
+        color: #155724;
+    }
+    .status-badge.failed {
+        background: #f8d7da;
+        color: #721c24;
+    }
+    .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 12px 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+    }
+    .error-message.visible {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="deploy-form">
+    <div class="form-header">
+        <h2>Deploy Application</h2>
+        <p>Deploy your application to a VM or OpenShift cluster via AWX automation</p>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <form id="deployForm">
+        <div class="form-group">
+            <label>Application Name <span class="required">*</span></label>
+            <input type="text" id="appName" name="app_name" placeholder="e.g., my-web-app" required>
+            <div class="help-text">The name of your application to deploy</div>
+        </div>
+
+        <div class="form-group">
+            <label>Version</label>
+            <input type="text" id="version" name="version" placeholder="latest" value="latest">
+            <div class="help-text">Version tag or "latest" for the most recent build</div>
+        </div>
+
+        <div class="form-group">
+            <label>Deployment Target <span class="required">*</span></label>
+            <div class="target-options">
+                <label class="target-option" onclick="selectTarget(this)">
+                    <input type="radio" name="target" value="vm">
+                    <div class="icon">&#128187;</div>
+                    <div class="label">Virtual Machine</div>
+                    <div class="desc">Deploy to a specific VM host</div>
+                </label>
+                <label class="target-option" onclick="selectTarget(this)">
+                    <input type="radio" name="target" value="openshift">
+                    <div class="icon">&#9881;</div>
+                    <div class="label">OpenShift</div>
+                    <div class="desc">Deploy to Kubernetes/OCP cluster</div>
+                </label>
+            </div>
+        </div>
+
+        <div id="vmFields" class="conditional-field">
+            <div class="form-group">
+                <label>VM Host <span class="required">*</span></label>
+                <input type="text" id="vmHost" name="vm_host" placeholder="e.g., webserver01.example.com">
+                <div class="help-text">Hostname or IP of the target VM</div>
+            </div>
+        </div>
+
+        <div id="ocpFields" class="conditional-field">
+            <div class="form-group">
+                <label>Namespace</label>
+                <input type="text" id="namespace" name="namespace" placeholder="default" value="default">
+                <div class="help-text">Kubernetes/OpenShift namespace for the deployment</div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-deploy" id="deployBtn">Deploy Application</button>
+    </form>
+
+    <div id="logOutput" class="log-output">
+        <span id="statusBadge" class="status-badge running">Running</span>
+        <pre id="logContent"></pre>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function selectTarget(element) {
+        document.querySelectorAll('.target-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        element.classList.add('selected');
+        element.querySelector('input').checked = true;
+
+        const target = element.querySelector('input').value;
+        document.getElementById('vmFields').classList.toggle('visible', target === 'vm');
+        document.getElementById('ocpFields').classList.toggle('visible', target === 'openshift');
+    }
+
+    document.getElementById('deployForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const errorDiv = document.getElementById('errorMessage');
+        const deployBtn = document.getElementById('deployBtn');
+        const logOutput = document.getElementById('logOutput');
+        const logContent = document.getElementById('logContent');
+        const statusBadge = document.getElementById('statusBadge');
+
+        errorDiv.classList.remove('visible');
+        errorDiv.textContent = '';
+
+        const appName = document.getElementById('appName').value.trim();
+        const version = document.getElementById('version').value.trim() || 'latest';
+        const targetInput = document.querySelector('input[name="target"]:checked');
+        const vmHost = document.getElementById('vmHost').value.trim();
+        const namespace = document.getElementById('namespace').value.trim() || 'default';
+
+        if (!appName) {
+            errorDiv.textContent = 'Application name is required';
+            errorDiv.classList.add('visible');
+            return;
+        }
+
+        if (!targetInput) {
+            errorDiv.textContent = 'Please select a deployment target';
+            errorDiv.classList.add('visible');
+            return;
+        }
+
+        const target = targetInput.value;
+
+        if (target === 'vm' && !vmHost) {
+            errorDiv.textContent = 'VM host is required for VM deployments';
+            errorDiv.classList.add('visible');
+            return;
+        }
+
+        const payload = {
+            app_name: appName,
+            version: version,
+            target: target
+        };
+
+        if (target === 'vm') {
+            payload.vm_host = vmHost;
+        } else {
+            payload.namespace = namespace;
+        }
+
+        deployBtn.disabled = true;
+        deployBtn.textContent = 'Deploying...';
+
+        fetch('/deploy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            logOutput.classList.add('visible');
+            logContent.textContent = '';
+            statusBadge.className = 'status-badge running';
+            statusBadge.textContent = 'Running';
+
+            const eventSource = new EventSource('/deploy/status/' + data.job_id);
+
+            eventSource.onmessage = function(event) {
+                try {
+                    const parsed = JSON.parse(event.data);
+                    if (parsed.status) {
+                        statusBadge.className = 'status-badge ' + parsed.status;
+                        statusBadge.textContent = parsed.status.charAt(0).toUpperCase() + parsed.status.slice(1);
+                        deployBtn.disabled = false;
+                        deployBtn.textContent = 'Deploy Application';
+                        eventSource.close();
+
+                        if (parsed.url) {
+                            logContent.textContent += '\n\nDeployment URL: ' + parsed.url;
+                        }
+                    }
+                } catch (e) {
+                    logContent.textContent += event.data + '\n';
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }
+            };
+
+            eventSource.onerror = function() {
+                eventSource.close();
+                deployBtn.disabled = false;
+                deployBtn.textContent = 'Deploy Application';
+            };
+        })
+        .catch(error => {
+            errorDiv.textContent = error.message;
+            errorDiv.classList.add('visible');
+            deployBtn.disabled = false;
+            deployBtn.textContent = 'Deploy Application';
+        });
+    });
+</script>
+{% endblock %}
