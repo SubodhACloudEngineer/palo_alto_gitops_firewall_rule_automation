@@ -46,7 +46,9 @@ palo_alto_gitops_firewall_rule_automation/
 │       ├── request_details.html        # Request details - extends base.html
 │       ├── request_form.html           # Generic form - extends base.html
 │       ├── new_request.html            # VLAN request - extends base.html
-│       └── error.html                  # Error page - extends base.html
+│       ├── error.html                  # Error page - extends base.html
+│       └── deploy/
+│           └── deploy.html             # Deploy application form (NEW)
 ├── terraform/
 │   └── azure-vm/
 │       ├── main.tf                     # VMs, VNet, Subnet, NSG resources
@@ -116,6 +118,27 @@ palo_alto_gitops_firewall_rule_automation/
 - Uses Bearer token auth: `Authorization: Bearer <AWX_TOKEN>`
 - 10 second request timeout, respects SSL verification setting
 - Includes CLI for testing: `python awx_client.py test`
+
+### Deploy Application Routes (NEW)
+- **Routes in `app.py`:**
+  - `GET /deploy` — Render deploy form (`templates/deploy/deploy.html`)
+  - `POST /deploy` — Trigger AWX job, returns `{ "job_id": <id> }`
+  - `GET /deploy/status/<job_id>` — SSE stream of job logs
+- **POST /deploy payload:**
+  ```json
+  {
+    "app_name": "my-app",
+    "version": "latest",
+    "target": "vm | openshift",
+    "vm_host": "webserver01.example.com",
+    "namespace": "default"
+  }
+  ```
+- **AWX Job Templates:**
+  - VM target → `Deploy-App-VM` with `{ app_name, version, vm_host }`
+  - OpenShift target → `Deploy-App-OCP` with `{ app_name, version, namespace, image_tag }`
+- **In-memory storage:** `deploy_jobs[job_id]` stores `{ target, app_name, status, url }`
+- **SSE headers:** `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`
 
 ---
 
@@ -280,3 +303,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | PE Review document | Created `docs/platform-engineering-review.md` for team meeting |
 | Template refactoring | Created `base.html` with shared CSS/nav; all templates now extend it with Jinja2 blocks |
 | AWX client module | Added `awx_client.py` with `trigger_job`, `get_job_status`, `stream_job_log` functions for AWX REST API |
+| Deploy application routes | Added `/deploy`, `/deploy` (POST), `/deploy/status/<job_id>` routes for app deployment via AWX |
