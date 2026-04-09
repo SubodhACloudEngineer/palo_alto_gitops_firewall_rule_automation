@@ -1,0 +1,40 @@
+{
+  "rule_name": "allow_traffic_user_to_web01",
+  "description": "Allow_rule",
+  "source_zone": [
+    "untrust"
+  ],
+  "destination_zone": [
+    "dmz"
+  ],
+  "source_address": [
+    "40.76.146.109"
+  ],
+  "destination_address": [
+    "web01application"
+  ],
+  "application": [
+    "web-browsing",
+    "ssl",
+    "any"
+  ],
+  "service": [
+    "application-default"
+  ],
+  "action": "allow",
+  "log_at_session_start": true,
+  "log_at_session_end": true,
+  "position": "top",
+  "tag": [
+    "gitops-managed",
+    "self-service"
+  ],
+  "metadata": {
+    "created_by": "Jeff",
+    "created_via": "Self-Service Portal",
+    "timestamp": "2026-02-25 12:13:20",
+    "request_id": "SR-1001",
+    "target_firewall": "fw1toyota123",
+    "business_justification": "Allow_rule"
+  }
+}
