@@ -106,18 +106,19 @@ palo_alto_gitops_firewall_rule_automation/
 - **Module:** `self-service-portal/awx_client.py`
 - CD-only: image is pre-built in registry; AWX receives `image_tag` as extra_var and deploys only
 - **Functions:**
-  - `trigger_job(template_name, extra_vars)` — Resolves template name → id, POSTs to `/launch/`, returns `job_id` string; raises `ValueError` if template not found
+  - `trigger_job(template_name, extra_vars)` — Resolves template name → id, POSTs to `/launch/`, returns `job_id` string; raises `ValueError` if not found, `RuntimeError` if launch fails
   - `get_job_status(job_id)` — Returns `{"status": "pending|waiting|running|successful|failed|canceled", "finished": bool, "elapsed": float}`
-  - `stream_job_log(job_id)` — Generator; polls stdout with byte-range offsets, yields log lines then final `{"status": "done"|"failed", "url": "..."}` dict
-- **Configuration (env vars):**
+  - `stream_job_log(job_id)` — Generator; polls stdout with byte-range offsets (`Range: bytes=<offset>-`), yields log lines then final `{"status": "done"|"failed", "url": "..."}` dict; **never raises** — catches all exceptions, yields error as log line, then yields failed status
+- **Configuration (env vars via python-dotenv):**
   ```
   AWX_HOST=https://awx.internal.example.com
   AWX_TOKEN=<token>
   AWX_VERIFY_SSL=true
   ```
-- Auth header: `Authorization: Token <AWX_TOKEN>` (AWX Token auth, not Bearer)
+- Uses `requests.Session()` at module level with `Authorization: Token <AWX_TOKEN>` header
 - 10 second request timeout, byte-range polling every 2 seconds
-- URL detection in logs: `deployed_url = <url>` or `DEPLOYED_URL: <url>`
+- URL detection: scans logs for `DEPLOYED_URL: <url>` pattern
+- Logging: DEBUG for all API calls, INFO for job launch success, ERROR for failures
 - CLI: `python awx_client.py test|templates|trigger|status|logs`
 
 ### Deploy Application Routes (NEW)
@@ -307,3 +308,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Deploy application routes | Added `/deploy`, `/deploy` (POST), `/deploy/status/<job_id>` routes for app deployment via AWX |
 | Deploy template | Created `templates/deploy/deploy.html` with VM/OpenShift target cards, SSE log streaming, and portal-matching styles |
 | AWX client rewrite | Fixed auth header (`Token` not `Bearer`), added `elapsed` to `get_job_status`, byte-range polling in `stream_job_log`, CD-only design |
+| AWX client v2 | Refactored to use `requests.Session()`, `python-dotenv`, DEBUG logging for API calls, `stream_job_log` never raises (yields errors as log lines) |
