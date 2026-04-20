@@ -102,22 +102,23 @@ palo_alto_gitops_firewall_rule_automation/
 - **Azure Subscription:** `8527d19f-1ff6-461c-a89e-da961a355bed`
 - State is **local** (demo) — migrate to Azure Storage before production
 
-### AWX Integration (NEW)
+### AWX Integration
 - **Module:** `self-service-portal/awx_client.py`
-- Provides REST API client for AWX/Ansible Tower
+- CD-only: image is pre-built in registry; AWX receives `image_tag` as extra_var and deploys only
 - **Functions:**
-  - `trigger_job(template_name, extra_vars)` — Launch job template by name, returns job_id
-  - `get_job_status(job_id)` — Returns `{"status": "pending|running|successful|failed", "finished": bool}`
-  - `stream_job_log(job_id)` — Generator that yields log lines and final status dict
+  - `trigger_job(template_name, extra_vars)` — Resolves template name → id, POSTs to `/launch/`, returns `job_id` string; raises `ValueError` if template not found
+  - `get_job_status(job_id)` — Returns `{"status": "pending|waiting|running|successful|failed|canceled", "finished": bool, "elapsed": float}`
+  - `stream_job_log(job_id)` — Generator; polls stdout with byte-range offsets, yields log lines then final `{"status": "done"|"failed", "url": "..."}` dict
 - **Configuration (env vars):**
   ```
-  AWX_HOST=https://awx.example.com
-  AWX_TOKEN=<bearer token>
+  AWX_HOST=https://awx.internal.example.com
+  AWX_TOKEN=<token>
   AWX_VERIFY_SSL=true
   ```
-- Uses Bearer token auth: `Authorization: Bearer <AWX_TOKEN>`
-- 10 second request timeout, respects SSL verification setting
-- Includes CLI for testing: `python awx_client.py test`
+- Auth header: `Authorization: Token <AWX_TOKEN>` (AWX Token auth, not Bearer)
+- 10 second request timeout, byte-range polling every 2 seconds
+- URL detection in logs: `deployed_url = <url>` or `DEPLOYED_URL: <url>`
+- CLI: `python awx_client.py test|templates|trigger|status|logs`
 
 ### Deploy Application Routes (NEW)
 - **Routes in `app.py`:**
@@ -305,3 +306,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | AWX client module | Added `awx_client.py` with `trigger_job`, `get_job_status`, `stream_job_log` functions for AWX REST API |
 | Deploy application routes | Added `/deploy`, `/deploy` (POST), `/deploy/status/<job_id>` routes for app deployment via AWX |
 | Deploy template | Created `templates/deploy/deploy.html` with VM/OpenShift target cards, SSE log streaming, and portal-matching styles |
+| AWX client rewrite | Fixed auth header (`Token` not `Bearer`), added `elapsed` to `get_job_status`, byte-range polling in `stream_job_log`, CD-only design |
