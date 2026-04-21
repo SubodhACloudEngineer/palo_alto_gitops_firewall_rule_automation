@@ -6,333 +6,364 @@
 <div class="container medium">
     <div class="header">
         <div class="header-left">
-            <div class="service-icon-large">&#128640;</div>
+            <div class="service-icon-large">🚀</div>
             <div class="header-title">
                 <h1>Deploy Application</h1>
-                <p>Choose a deployment target and deploy your Flask app</p>
+                <p>Select a deployment target and trigger a deployment via AWX</p>
             </div>
         </div>
     </div>
 
     <div class="content">
-        <a href="/new_request" class="back-link">&#8592; Back to Service Catalog</a>
+        <a href="/new_request" class="back-link">← Back to Service Catalog</a>
 
-        <div class="info-box">
-            <p><strong>AWX Automation:</strong> Deployments are executed via AWX job templates. Logs are streamed in real-time.</p>
-        </div>
-
-        <div class="warning-box" id="error-box">
-            <p id="error-message"></p>
-        </div>
-
+        <!-- Deploy Form -->
         <form id="deploy-form">
-            <div class="form-section">
-                <h3>Application Details</h3>
+            <div class="form-group">
+                <label for="app-name">Application Name <span class="required">*</span></label>
+                <input type="text" id="app-name" name="app_name" required placeholder="e.g. my-flask-app">
+            </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="app_name">Application Name <span class="required">*</span></label>
-                        <input type="text" id="app_name" name="app_name" required placeholder="e.g. my-flask-app">
-                        <small>The name of your application to deploy</small>
-                    </div>
+            <div class="form-group">
+                <label for="version">Image Tag / Version <span class="required">*</span></label>
+                <input type="text" id="version" name="version" required placeholder="e.g. v1.0.3-abc123  or  latest">
+                <small>Use the exact image tag produced by your CI pipeline.</small>
+            </div>
 
-                    <div class="form-group">
-                        <label for="version">Version / Image Tag</label>
-                        <input type="text" id="version" name="version" placeholder="latest" value="latest">
-                        <small>Version tag or "latest" for the most recent build</small>
-                    </div>
+            <div class="section-title">Deployment Target</div>
+
+            <div class="service-grid" id="target-cards" style="grid-template-columns: repeat(3, 1fr); margin-top: 15px; margin-bottom: 25px;">
+                <div class="service-card selected" data-target="vm" onclick="selectTarget('vm')">
+                    <input type="radio" name="target" value="vm" checked style="display: none;">
+                    <div class="service-icon">🖥️</div>
+                    <div class="service-title">On-Prem Virtual Machine</div>
+                    <div class="service-description">SSH · git clone · systemd</div>
+                </div>
+                <div class="service-card" data-target="openshift" onclick="selectTarget('openshift')">
+                    <input type="radio" name="target" value="openshift" style="display: none;">
+                    <div class="service-icon">🔴</div>
+                    <div class="service-title">OpenShift on Azure (ARO)</div>
+                    <div class="service-description">oc apply / helm · OCP Route</div>
+                </div>
+                <div class="service-card" data-target="aks" onclick="selectTarget('aks')">
+                    <input type="radio" name="target" value="aks" style="display: none;">
+                    <div class="service-icon">☁️</div>
+                    <div class="service-title">Azure Kubernetes Service (AKS)</div>
+                    <div class="service-description">helm upgrade · NGINX Ingress</div>
                 </div>
             </div>
 
-            <div class="form-section">
-                <h3>Deployment Target</h3>
-
-                <div class="form-group">
-                    <label>Select Target <span class="required">*</span></label>
-                    <div class="radio-group" id="target-group">
-                        <label id="target-vm-label">
-                            <input type="radio" name="target" value="vm">
-                            <span style="font-size: 24px; margin-right: 8px;">&#128421;</span>
-                            <span>
-                                <strong>On-Prem Virtual Machine</strong><br>
-                                <small style="font-weight: normal; color: #666;">Deploy via SSH &middot; systemd service</small>
-                            </span>
-                        </label>
-                        <label id="target-openshift-label">
-                            <input type="radio" name="target" value="openshift">
-                            <span style="font-size: 24px; margin-right: 8px;">&#9729;</span>
-                            <span>
-                                <strong>OpenShift on Azure</strong><br>
-                                <small style="font-weight: normal; color: #666;">Deploy to ARO &middot; OCP Route</small>
-                            </span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="conditional-field" id="vm-field">
-                    <div class="form-group">
-                        <label for="vm_host">VM Hostname <span class="required">*</span></label>
-                        <input type="text" id="vm_host" name="vm_host" placeholder="192.168.1.10">
-                        <small>Hostname or IP address of the target VM</small>
-                    </div>
-                </div>
-
-                <div class="conditional-field" id="openshift-field">
-                    <div class="form-group">
-                        <label for="namespace">Namespace</label>
-                        <input type="text" id="namespace" name="namespace" placeholder="default" value="default">
-                        <small>Kubernetes/OpenShift namespace for the deployment</small>
-                    </div>
-                </div>
+            <!-- Conditional Fields -->
+            <div id="vm-host-field" class="form-group">
+                <label for="vm-host">VM Hostname or IP <span class="required">*</span></label>
+                <input type="text" id="vm-host" name="vm_host" placeholder="192.168.1.10">
             </div>
 
-            <div class="submit-section">
-                <div></div>
-                <button type="submit" id="submit-btn">Deploy Application</button>
+            <div id="namespace-field" class="form-group" style="display: none;">
+                <label for="namespace" id="namespace-label">Target Namespace</label>
+                <input type="text" id="namespace" name="namespace" placeholder="default" value="default">
+            </div>
+
+            <div class="button-group" style="margin-top: 30px;">
+                <button type="submit" id="submit-btn" style="width: 100%;">🚀 Deploy Application</button>
             </div>
         </form>
 
         <!-- Log Panel (hidden initially) -->
-        <div id="log-panel" style="display: none; margin-top: 30px;">
+        <div id="log-panel" style="display: none; margin-top: 40px;">
             <div class="section-title">Deployment Log</div>
 
-            <div style="margin-bottom: 15px;">
-                <span id="status-badge" class="status status-running">RUNNING</span>
+            <!-- Status Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="color: #666; font-size: 14px;">
+                    Job ID: <span id="job-id-display" style="font-weight: 600; color: #333;">—</span>
+                </div>
+                <span id="status-badge" class="status status-pending">RUNNING</span>
             </div>
 
-            <div id="log-box" class="output-box" style="height: 300px;"></div>
+            <!-- Log Box -->
+            <div id="log-box" class="output-box" style="height: 320px;"></div>
 
-            <div id="result-banner" style="display: none; margin-top: 20px; padding: 15px; border-radius: 8px;"></div>
+            <!-- Result Banner (hidden initially) -->
+            <div id="result-banner" style="display: none; margin-top: 20px; padding: 20px; border-radius: 8px;">
+                <div id="result-title" style="font-size: 18px; font-weight: 600; margin-bottom: 8px;"></div>
+                <div id="result-details" style="font-size: 14px; color: #666; margin-bottom: 12px;"></div>
+                <a id="result-link" href="#" target="_blank" style="display: none; color: #0067B1; font-weight: 500;">🔗 Open Application →</a>
+            </div>
 
-            <div style="margin-top: 20px;">
-                <button type="button" id="reset-btn" class="btn btn-secondary" style="display: none;">Deploy Another App</button>
+            <!-- Reset Button -->
+            <div class="button-group" style="margin-top: 20px;">
+                <button type="button" id="reset-btn" class="cancel-btn" style="display: none;" onclick="resetPage()">Deploy Another App</button>
             </div>
         </div>
-    </div>
-
-    <div class="footer">
-        Self-Service Infrastructure Portal | Powered by AWX Automation
     </div>
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script>
-    // Target selection handling
-    const targetGroup = document.getElementById('target-group');
-    const vmField = document.getElementById('vm-field');
-    const openshiftField = document.getElementById('openshift-field');
-    const vmLabel = document.getElementById('target-vm-label');
-    const openshiftLabel = document.getElementById('target-openshift-label');
+    // State
+    let selectedTarget = "vm";
+    let currentJobId = null;
+    let eventSource = null;
 
-    targetGroup.querySelectorAll('input[name="target"]').forEach(function(radio) {
-        radio.addEventListener('change', function() {
-            // Update visual selection
-            vmLabel.classList.remove('selected');
-            openshiftLabel.classList.remove('selected');
-            this.closest('label').classList.add('selected');
-
-            // Show/hide conditional fields
-            if (this.value === 'vm') {
-                vmField.classList.add('visible');
-                openshiftField.classList.remove('visible');
-            } else if (this.value === 'openshift') {
-                vmField.classList.remove('visible');
-                openshiftField.classList.add('visible');
-            }
-        });
-    });
-
-    // Form elements
+    // DOM Elements
     const form = document.getElementById('deploy-form');
     const submitBtn = document.getElementById('submit-btn');
-    const errorBox = document.getElementById('error-box');
-    const errorMessage = document.getElementById('error-message');
     const logPanel = document.getElementById('log-panel');
     const logBox = document.getElementById('log-box');
     const statusBadge = document.getElementById('status-badge');
+    const jobIdDisplay = document.getElementById('job-id-display');
     const resultBanner = document.getElementById('result-banner');
     const resetBtn = document.getElementById('reset-btn');
+    const vmHostField = document.getElementById('vm-host-field');
+    const namespaceField = document.getElementById('namespace-field');
+    const namespaceLabel = document.getElementById('namespace-label');
 
-    // Show error
-    function showError(msg) {
-        errorMessage.textContent = msg;
-        errorBox.classList.add('visible');
-    }
+    // Target Selection
+    function selectTarget(target) {
+        selectedTarget = target;
 
-    // Hide error
-    function hideError() {
-        errorBox.classList.remove('visible');
-    }
-
-    // Disable/enable form inputs
-    function setFormDisabled(disabled) {
-        form.querySelectorAll('input, button[type="submit"]').forEach(function(el) {
-            el.disabled = disabled;
+        // Update card styles
+        document.querySelectorAll('#target-cards .service-card').forEach(card => {
+            card.classList.remove('selected');
+            card.style.borderColor = '#e0e0e0';
+            card.style.backgroundColor = 'white';
         });
+
+        const selectedCard = document.querySelector('#target-cards .service-card[data-target="' + target + '"]');
+        selectedCard.classList.add('selected');
+        selectedCard.style.borderColor = '#0067B1';
+        selectedCard.style.backgroundColor = '#E3F2FD';
+        selectedCard.querySelector('input[type="radio"]').checked = true;
+
+        // Show/hide conditional fields
+        if (target === 'vm') {
+            vmHostField.style.display = 'block';
+            namespaceField.style.display = 'none';
+        } else {
+            vmHostField.style.display = 'none';
+            namespaceField.style.display = 'block';
+            namespaceLabel.textContent = target === 'openshift' ? 'Target Namespace' : 'AKS Namespace';
+        }
     }
 
-    // Reset to initial state
-    function resetForm() {
-        form.reset();
-        hideError();
-        logPanel.style.display = 'none';
-        logBox.textContent = '';
-        resultBanner.style.display = 'none';
-        resetBtn.style.display = 'none';
-        statusBadge.className = 'status status-running';
-        statusBadge.textContent = 'RUNNING';
-        vmField.classList.remove('visible');
-        openshiftField.classList.remove('visible');
-        vmLabel.classList.remove('selected');
-        openshiftLabel.classList.remove('selected');
-        setFormDisabled(false);
-        submitBtn.textContent = 'Deploy Application';
-    }
-
-    resetBtn.addEventListener('click', resetForm);
-
-    // Form submission
+    // Form Submission
     form.addEventListener('submit', function(e) {
         e.preventDefault();
-        hideError();
 
-        // Get values
-        var appName = document.getElementById('app_name').value.trim();
-        var version = document.getElementById('version').value.trim() || 'latest';
-        var targetRadio = document.querySelector('input[name="target"]:checked');
-        var vmHost = document.getElementById('vm_host').value.trim();
-        var namespace = document.getElementById('namespace').value.trim() || 'default';
+        const appName = document.getElementById('app-name').value.trim();
+        const version = document.getElementById('version').value.trim();
+        const vmHost = document.getElementById('vm-host').value.trim();
+        const namespace = document.getElementById('namespace').value.trim() || 'default';
 
-        // Validate
+        // Validation
         if (!appName) {
-            showError('Application name is required');
+            alert('Application Name is required.');
+            return;
+        }
+        if (!version) {
+            alert('Image Tag / Version is required.');
+            return;
+        }
+        if (selectedTarget === 'vm' && !vmHost) {
+            alert('VM Hostname or IP is required.');
             return;
         }
 
-        if (!targetRadio) {
-            showError('Please select a deployment target');
-            return;
-        }
-
-        var target = targetRadio.value;
-
-        if (target === 'vm' && !vmHost) {
-            showError('VM hostname is required for VM deployments');
-            return;
-        }
-
-        // Build payload
-        var payload = {
+        // Build request body
+        const body = {
             app_name: appName,
             version: version,
-            target: target
+            target: selectedTarget
         };
 
-        if (target === 'vm') {
-            payload.vm_host = vmHost;
+        if (selectedTarget === 'vm') {
+            body.vm_host = vmHost;
         } else {
-            payload.namespace = namespace;
+            body.namespace = namespace;
         }
 
-        // Disable form and show log panel
-        setFormDisabled(true);
-        submitBtn.textContent = 'Deploying...';
+        // Show log panel and disable form
         logPanel.style.display = 'block';
-        logBox.textContent = '';
+        logBox.innerHTML = '';
+        setStatus('RUNNING');
         resultBanner.style.display = 'none';
         resetBtn.style.display = 'none';
-        statusBadge.className = 'status status-running';
-        statusBadge.textContent = 'RUNNING';
+        setFormDisabled(true);
+        submitBtn.innerHTML = '⏳ Deploying...';
 
         // POST to /deploy
         fetch('/deploy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(body)
         })
-        .then(function(response) {
-            return response.json();
-        })
-        .then(function(data) {
+        .then(response => response.json())
+        .then(data => {
             if (data.error) {
-                throw new Error(data.error);
+                appendLogLine('ERROR: ' + data.error);
+                setStatus('FAILED');
+                showResultBanner('failure', '');
+                setFormDisabled(false);
+                submitBtn.innerHTML = '🚀 Deploy Application';
+                resetBtn.style.display = 'inline-block';
+                return;
             }
 
+            currentJobId = data.job_id;
+            jobIdDisplay.textContent = currentJobId;
+
             // Open SSE connection
-            var jobId = data.job_id;
-            var eventSource = new EventSource('/deploy/status/' + jobId);
+            eventSource = new EventSource('/deploy/status/' + currentJobId);
 
-            eventSource.onmessage = function(event) {
-                var eventData = event.data;
-
-                // Try to parse as JSON
+            eventSource.onmessage = function(e) {
                 try {
-                    var parsed = JSON.parse(eventData);
-                    if (parsed.status) {
-                        // Final status
-                        eventSource.close();
-
-                        if (parsed.status === 'successful') {
-                            statusBadge.className = 'status status-completed';
-                            statusBadge.textContent = 'DONE';
-                            resultBanner.style.display = 'block';
-                            resultBanner.style.backgroundColor = '#d4edda';
-                            resultBanner.style.borderLeft = '4px solid #28a745';
-                            resultBanner.style.color = '#155724';
-                            if (parsed.url) {
-                                resultBanner.innerHTML = '&#10003; Deployed successfully! View app: <a href="' + parsed.url + '" target="_blank">' + parsed.url + '</a>';
-                            } else {
-                                resultBanner.innerHTML = '&#10003; Deployed successfully!';
-                            }
+                    const eventData = JSON.parse(e.data);
+                    if (eventData.status) {
+                        // Final event
+                        if (eventData.status === 'done') {
+                            setStatus('DONE');
+                            showResultBanner('success', eventData.url, appName, version, selectedTarget);
                         } else {
-                            statusBadge.className = 'status status-failed';
-                            statusBadge.textContent = 'FAILED';
-                            resultBanner.style.display = 'block';
-                            resultBanner.style.backgroundColor = '#f8d7da';
-                            resultBanner.style.borderLeft = '4px solid #dc3545';
-                            resultBanner.style.color = '#721c24';
-                            resultBanner.innerHTML = '&#10007; Deployment failed. Check logs above.';
+                            setStatus('FAILED');
+                            showResultBanner('failure', '');
                         }
-
-                        resetBtn.style.display = 'inline-block';
+                        eventSource.close();
                         setFormDisabled(false);
-                        submitBtn.textContent = 'Deploy Application';
-                        return;
+                        submitBtn.innerHTML = '🚀 Deploy Application';
+                        resetBtn.style.display = 'inline-block';
+                    } else if (eventData.error) {
+                        appendLogLine('ERROR: ' + eventData.error);
                     }
-
-                    if (parsed.error) {
-                        logBox.textContent += 'ERROR: ' + parsed.error + '\n';
-                    }
-                } catch (e) {
-                    // Plain text log line
-                    logBox.textContent += eventData + '\n';
+                } catch (err) {
+                    // Plain log line
+                    appendLogLine(e.data);
                 }
-
-                // Auto-scroll to bottom
-                logBox.scrollTop = logBox.scrollHeight;
             };
 
             eventSource.onerror = function() {
+                appendLogLine('⚠️ Connection to log stream lost.');
+                setStatus('FAILED');
                 eventSource.close();
-                statusBadge.className = 'status status-failed';
-                statusBadge.textContent = 'FAILED';
-                resultBanner.style.display = 'block';
-                resultBanner.style.backgroundColor = '#f8d7da';
-                resultBanner.style.borderLeft = '4px solid #dc3545';
-                resultBanner.style.color = '#721c24';
-                resultBanner.innerHTML = '&#10007; Connection lost. Check logs above.';
-                resetBtn.style.display = 'inline-block';
                 setFormDisabled(false);
-                submitBtn.textContent = 'Deploy Application';
+                submitBtn.innerHTML = '🚀 Deploy Application';
+                resetBtn.style.display = 'inline-block';
             };
         })
-        .catch(function(error) {
-            showError(error.message);
+        .catch(error => {
+            appendLogLine('ERROR: ' + error.message);
+            setStatus('FAILED');
             setFormDisabled(false);
-            submitBtn.textContent = 'Deploy Application';
-            logPanel.style.display = 'none';
+            submitBtn.innerHTML = '🚀 Deploy Application';
+            resetBtn.style.display = 'inline-block';
         });
     });
+
+    // Helper: Append log line
+    function appendLogLine(text) {
+        const line = document.createElement('div');
+        line.textContent = text;
+        line.style.marginBottom = '2px';
+        logBox.appendChild(line);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // Helper: Set status badge
+    function setStatus(state) {
+        statusBadge.textContent = state;
+        statusBadge.className = 'status';
+        if (state === 'RUNNING') {
+            statusBadge.classList.add('status-pending');
+            statusBadge.style.animation = 'pulse 1.5s infinite';
+        } else if (state === 'DONE') {
+            statusBadge.classList.add('status-completed');
+            statusBadge.style.animation = 'none';
+        } else if (state === 'FAILED') {
+            statusBadge.classList.add('status-failed');
+            statusBadge.style.animation = 'none';
+        }
+    }
+
+    // Helper: Show result banner
+    function showResultBanner(type, url, appName, version, target) {
+        resultBanner.style.display = 'block';
+        const resultTitle = document.getElementById('result-title');
+        const resultDetails = document.getElementById('result-details');
+        const resultLink = document.getElementById('result-link');
+
+        if (type === 'success') {
+            resultBanner.style.backgroundColor = '#E8F5E9';
+            resultBanner.style.borderLeft = '4px solid #4CAF50';
+            resultTitle.textContent = '✅ Deployed successfully!';
+            resultTitle.style.color = '#2E7D32';
+            resultDetails.textContent = 'Target: ' + target + '  ·  App: ' + appName + '  ·  Version: ' + version;
+            if (url) {
+                resultLink.style.display = 'inline';
+                resultLink.href = url;
+                resultLink.textContent = '🔗 Open Application → ' + url;
+            } else {
+                resultLink.style.display = 'none';
+            }
+        } else {
+            resultBanner.style.backgroundColor = '#FFEBEE';
+            resultBanner.style.borderLeft = '4px solid #F44336';
+            resultTitle.textContent = '❌ Deployment failed.';
+            resultTitle.style.color = '#C62828';
+            resultDetails.textContent = 'Review the log output above.';
+            resultLink.style.display = 'none';
+        }
+    }
+
+    // Helper: Set form disabled state
+    function setFormDisabled(disabled) {
+        document.getElementById('app-name').disabled = disabled;
+        document.getElementById('version').disabled = disabled;
+        document.getElementById('vm-host').disabled = disabled;
+        document.getElementById('namespace').disabled = disabled;
+        submitBtn.disabled = disabled;
+        document.querySelectorAll('#target-cards .service-card').forEach(card => {
+            card.style.pointerEvents = disabled ? 'none' : 'auto';
+            card.style.opacity = disabled ? '0.6' : '1';
+        });
+    }
+
+    // Reset page to initial state
+    function resetPage() {
+        // Hide log panel
+        logPanel.style.display = 'none';
+        resultBanner.style.display = 'none';
+        resetBtn.style.display = 'none';
+
+        // Clear log
+        logBox.innerHTML = '';
+        jobIdDisplay.textContent = '—';
+
+        // Reset form
+        form.reset();
+        document.getElementById('namespace').value = 'default';
+
+        // Re-enable form
+        setFormDisabled(false);
+        submitBtn.innerHTML = '🚀 Deploy Application';
+
+        // Reset target selection to VM
+        selectTarget('vm');
+
+        // Clear state
+        currentJobId = null;
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+    }
+
+    // Add pulse animation style
+    const style = document.createElement('style');
+    style.textContent = '@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }';
+    document.head.appendChild(style);
+
+    // Initialize
+    selectTarget('vm');
 </script>
 {% endblock %}
