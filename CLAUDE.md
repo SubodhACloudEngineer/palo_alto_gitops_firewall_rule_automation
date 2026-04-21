@@ -121,7 +121,7 @@ palo_alto_gitops_firewall_rule_automation/
 - Logging: DEBUG for all API calls, INFO for job launch success, ERROR for failures
 - CLI: `python awx_client.py test|templates|trigger|status|logs`
 
-### Deploy Application Routes (NEW)
+### Deploy Application Routes
 - **Routes in `app.py`:**
   - `GET /deploy` — Render deploy form (`templates/deploy/deploy.html`)
   - `POST /deploy` — Trigger AWX job, returns `{ "job_id": <id> }`
@@ -130,16 +130,32 @@ palo_alto_gitops_firewall_rule_automation/
   ```json
   {
     "app_name": "my-app",
-    "version": "latest",
-    "target": "vm | openshift",
+    "version": "v1.0.3-abc123",
+    "target": "vm | openshift | aks",
     "vm_host": "webserver01.example.com",
     "namespace": "default"
   }
   ```
+- **Validation:**
+  - `app_name`, `version`, `target` are required
+  - `target` must be one of: `vm`, `openshift`, `aks`
+  - `vm_host` required when `target == "vm"`
+  - `namespace` optional (default: `"default"`) for openshift/aks
 - **AWX Job Templates:**
-  - VM target → `Deploy-App-VM` with `{ app_name, version, vm_host }`
-  - OpenShift target → `Deploy-App-OCP` with `{ app_name, version, namespace, image_tag }`
-- **In-memory storage:** `deploy_jobs[job_id]` stores `{ target, app_name, status, url }`
+  - `vm` → `Deploy-App-VM` with `{ app_name, version, vm_host }`
+  - `openshift` → `Deploy-App-OCP` with `{ app_name, image_tag, namespace, image_registry }`
+  - `aks` → `Deploy-App-AKS` with `{ app_name, image_tag, namespace, image_registry, aks_cluster, aks_rg }`
+- **Error responses:**
+  - 400 — Missing/invalid field
+  - 404 — AWX template not found (`ValueError`)
+  - 502 — AWX job launch failed (`RuntimeError`)
+- **In-memory storage:** `deploy_jobs[job_id]` stores `{ app_name, version, target, status, url, started_at }`
+- **Environment variables:**
+  ```
+  IMAGE_REGISTRY=ghcr.io/your-org
+  AKS_CLUSTER_NAME=your-aks-cluster-name
+  AKS_RESOURCE_GROUP=your-aks-resource-group
+  ```
 - **SSE headers:** `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`
 
 ---
@@ -309,3 +325,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Deploy template | Created `templates/deploy/deploy.html` with VM/OpenShift target cards, SSE log streaming, and portal-matching styles |
 | AWX client rewrite | Fixed auth header (`Token` not `Bearer`), added `elapsed` to `get_job_status`, byte-range polling in `stream_job_log`, CD-only design |
 | AWX client v2 | Refactored to use `requests.Session()`, `python-dotenv`, DEBUG logging for API calls, `stream_job_log` never raises (yields errors as log lines) |
+| Deploy routes v2 | Added AKS target support, proper error handling (404/502), `started_at` timestamp, IMAGE_REGISTRY/AKS_CLUSTER_NAME/AKS_RESOURCE_GROUP env vars |
