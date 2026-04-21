@@ -1417,76 +1417,94 @@ def deploy_app():
         return jsonify({'error': 'Request body must be JSON'}), 400
 
     # Validate required fields
-    app_name = data.get('app_name', '').strip()
-    version = data.get('version', 'latest').strip()
-    target = data.get('target', '').strip()
-    vm_host = data.get('vm_host', '').strip()
-    namespace = data.get('namespace', 'default').strip()
+    app_name = data.get('app_name', '').strip() if data.get('app_name') else ''
+    version = data.get('version', '').strip() if data.get('version') else ''
+    target = data.get('target', '').strip() if data.get('target') else ''
 
     if not app_name:
         return jsonify({'error': 'app_name is required'}), 400
 
     if not version:
-        version = 'latest'
+        return jsonify({'error': 'version is required'}), 400
 
-    if target not in ('vm', 'openshift'):
-        return jsonify({'error': 'target must be "vm" or "openshift"'}), 400
+    if target not in ('vm', 'openshift', 'aks'):
+        return jsonify({'error': 'target must be one of: "vm", "openshift", "aks"'}), 400
 
-    if target == 'vm' and not vm_host:
-        return jsonify({'error': 'vm_host is required when target is "vm"'}), 400
-
-    # Build extra_vars based on target
+    # Target-specific validation and extra_vars
     if target == 'vm':
+        vm_host = data.get('vm_host', '').strip() if data.get('vm_host') else ''
+        if not vm_host:
+            return jsonify({'error': 'vm_host is required when target is "vm"'}), 400
         extra_vars = {
             'app_name': app_name,
             'version': version,
             'vm_host': vm_host
         }
         template_name = 'Deploy-App-VM'
-    else:
+
+    elif target == 'openshift':
+        namespace = data.get('namespace', 'default').strip() if data.get('namespace') else 'default'
         extra_vars = {
             'app_name': app_name,
-            'version': version,
+            'image_tag': version,
             'namespace': namespace,
-            'image_tag': version
+            'image_registry': os.getenv('IMAGE_REGISTRY', 'ghcr.io/your-org')
         }
         template_name = 'Deploy-App-OCP'
+
+    elif target == 'aks':
+        namespace = data.get('namespace', 'default').strip() if data.get('namespace') else 'default'
+        extra_vars = {
+            'app_name': app_name,
+            'image_tag': version,
+            'namespace': namespace,
+            'image_registry': os.getenv('IMAGE_REGISTRY', 'ghcr.io/your-org'),
+            'aks_cluster': os.getenv('AKS_CLUSTER_NAME', ''),
+            'aks_rg': os.getenv('AKS_RESOURCE_GROUP', '')
+        }
+        template_name = 'Deploy-App-AKS'
 
     # Trigger AWX job
     try:
         job_id = awx_client.trigger_job(template_name, extra_vars)
-    except Exception as e:
-        return jsonify({'error': f'Failed to trigger AWX job: {str(e)}'}), 500
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({'error': str(e)}), 502
 
     # Store job metadata
     deploy_jobs[job_id] = {
-        'target': target,
         'app_name': app_name,
+        'version': version,
+        'target': target,
         'status': 'running',
-        'url': None
+        'url': None,
+        'started_at': datetime.utcnow().isoformat()
     }
 
     return jsonify({'job_id': job_id})
 
 
-@app.route('/deploy/status/<int:job_id>')
+@app.route('/deploy/status/<job_id>')
 def deploy_status(job_id):
     """Stream job logs via Server-Sent Events"""
     def generate():
-        try:
-            for item in awx_client.stream_job_log(job_id):
-                if isinstance(item, dict):
-                    # Final status dict
-                    if job_id in deploy_jobs:
-                        deploy_jobs[job_id]['status'] = item.get('status', 'unknown')
-                        deploy_jobs[job_id]['url'] = item.get('url')
-                    yield f"data: {json.dumps(item)}\n\n"
-                    break
-                else:
-                    # Log line
-                    yield f"data: {item}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        # Check if job exists
+        if job_id not in deploy_jobs:
+            yield f"data: {json.dumps({'error': 'Job not found'})}\n\n"
+            return
+
+        # Stream logs from AWX
+        for item in awx_client.stream_job_log(job_id):
+            if isinstance(item, dict):
+                # Final status dict - update job record
+                deploy_jobs[job_id]['status'] = item.get('status', 'unknown')
+                deploy_jobs[job_id]['url'] = item.get('url')
+                yield f"data: {json.dumps(item)}\n\n"
+                return
+            else:
+                # Log line
+                yield f"data: {item}\n\n"
 
     return Response(
         stream_with_context(generate()),
