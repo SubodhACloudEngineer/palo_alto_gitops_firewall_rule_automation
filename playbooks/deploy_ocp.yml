@@ -1,0 +1,168 @@
+---
+# Ansible Playbook for OpenShift (ARO) Deployment
+# Deploys Flask app using pre-built container image
+# CD-only: AWX triggers this playbook with app_name, image_tag, namespace, image_registry
+
+- name: Deploy Flask Application to OpenShift (ARO)
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  collections:
+    - kubernetes.core
+    - redhat.openshift
+    - azure.azcollection
+
+  vars:
+    app_name: "{{ app_name }}"
+    image_tag: "{{ image_tag }}"
+    namespace: "{{ namespace }}"
+    image_registry: "{{ image_registry }}"
+    ocp_host: "{{ lookup('env', 'OCP_HOST') }}"
+    ocp_token: "{{ lookup('env', 'OCP_TOKEN') }}"
+    ocp_domain: "{{ lookup('env', 'OCP_DOMAIN') }}"
+    akv_name: "{{ lookup('env', 'AKV_NAME') }}"
+    app_port: 5000
+
+  tasks:
+    - name: Display deployment info
+      debug:
+        msg: |
+          ================================================
+          🔴 Deploying {{ app_name }} to OpenShift
+          ================================================
+          Namespace: {{ namespace }}
+          Image: {{ image_registry }}/{{ app_name }}:{{ image_tag }}
+          OCP Domain: {{ ocp_domain }}
+          ================================================
+
+    - name: Authenticate to OpenShift cluster
+      redhat.openshift.openshift_auth:
+        host: "{{ ocp_host }}"
+        api_key: "{{ ocp_token }}"
+        validate_certs: false
+      register: auth_result
+
+    - name: Ensure namespace exists
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ namespace }}"
+        state: present
+
+    - name: Fetch application secret from Azure Key Vault
+      azure.azcollection.azure_rm_keyvaultsecret_info:
+        vault_uri: "https://{{ akv_name }}.vault.azure.net"
+        name: "{{ app_name }}-secret"
+      register: app_secret
+      ignore_errors: yes
+
+    - name: Create Kubernetes secret from Key Vault value
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ app_name }}-secret"
+            namespace: "{{ namespace }}"
+          stringData:
+            APP_SECRET: "{{ app_secret.secrets[0].secret | default('default-secret-value') }}"
+      when: app_secret is succeeded
+
+    - name: Deploy application Deployment
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ app_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: "{{ app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ app_name }}"
+              spec:
+                containers:
+                  - name: "{{ app_name }}"
+                    image: "{{ image_registry }}/{{ app_name }}:{{ image_tag }}"
+                    ports:
+                      - containerPort: "{{ app_port }}"
+                    envFrom:
+                      - secretRef:
+                          name: "{{ app_name }}-secret"
+                    readinessProbe:
+                      httpGet:
+                        path: /health
+                        port: "{{ app_port }}"
+                      initialDelaySeconds: 5
+                      periodSeconds: 5
+
+    - name: Deploy application Service
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ app_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            selector:
+              app: "{{ app_name }}"
+            ports:
+              - port: 80
+                targetPort: "{{ app_port }}"
+
+    - name: Deploy OpenShift Route
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: "{{ app_name }}"
+            namespace: "{{ namespace }}"
+          spec:
+            host: "{{ app_name }}.{{ ocp_domain }}"
+            to:
+              kind: Service
+              name: "{{ app_name }}"
+            tls:
+              termination: edge
+
+    - name: Wait for deployment rollout
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ namespace }}"
+        name: "{{ app_name }}"
+      register: deployment_info
+      retries: 20
+      delay: 5
+      until: >
+        deployment_info.resources | length > 0 and
+        (deployment_info.resources[0].status.readyReplicas | default(0)) >= 1
+
+    - name: Smoke test application endpoint
+      uri:
+        url: "https://{{ app_name }}.{{ ocp_domain }}/health"
+        validate_certs: false
+        status_code: 200
+      register: smoke_test
+      retries: 5
+      delay: 3
+      until: smoke_test.status == 200
+
+    - name: Set deployed URL
+      set_fact:
+        deployed_url: "https://{{ app_name }}.{{ ocp_domain }}"
+
+    - name: Display deployment success
+      debug:
+        msg: "DEPLOYED_URL: {{ deployed_url }}"

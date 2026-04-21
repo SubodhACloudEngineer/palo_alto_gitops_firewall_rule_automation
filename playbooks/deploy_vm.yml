@@ -1,0 +1,93 @@
+---
+# Ansible Playbook for On-Prem VM Deployment
+# Deploys Flask app directly from source via git (no container image)
+# CD-only: AWX triggers this playbook with app_name, version, vm_host
+
+- name: Deploy Flask Application to On-Prem VM
+  hosts: "{{ vm_host }}"
+  gather_facts: yes
+  become: yes
+
+  vars:
+    app_name: "{{ app_name }}"
+    version: "{{ version }}"
+    repo_url: "{{ repo_url | default('https://github.com/your-org/' + app_name + '.git') }}"
+    app_dir: "/opt/apps/{{ app_name }}"
+    venv_dir: "{{ app_dir }}/venv"
+    app_port: 5000
+
+  tasks:
+    - name: Display deployment info
+      debug:
+        msg: |
+          ================================================
+          🖥️ Deploying {{ app_name }} to VM
+          ================================================
+          Target Host: {{ vm_host }}
+          Git Repo: {{ repo_url }}
+          Version: {{ version }}
+          App Directory: {{ app_dir }}
+          ================================================
+
+    - name: Ensure git and python3-pip are installed
+      package:
+        name:
+          - git
+          - python3-pip
+          - python3-venv
+        state: present
+
+    - name: Create application directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Clone or update application from git
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "{{ version }}"
+        force: yes
+      register: git_result
+
+    - name: Display git clone result
+      debug:
+        msg: "Git checkout: {{ git_result.after[:8] if git_result.after else 'N/A' }}"
+
+    - name: Install Python dependencies in virtualenv
+      pip:
+        requirements: "{{ app_dir }}/requirements.txt"
+        virtualenv: "{{ venv_dir }}"
+        virtualenv_command: python3 -m venv
+
+    - name: Deploy systemd service file
+      template:
+        src: systemd_service.j2
+        dest: "/etc/systemd/system/{{ app_name }}.service"
+        mode: '0644'
+
+    - name: Reload systemd and restart application
+      systemd:
+        name: "{{ app_name }}"
+        daemon_reload: yes
+        enabled: yes
+        state: restarted
+
+    - name: Wait for application to start
+      uri:
+        url: "http://localhost:{{ app_port }}/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 10
+      delay: 3
+      until: health_check.status == 200
+
+    - name: Set deployed URL
+      set_fact:
+        deployed_url: "http://{{ vm_host }}:{{ app_port }}"
+
+    - name: Display deployment success
+      debug:
+        msg: "DEPLOYED_URL: {{ deployed_url }}"

@@ -1,0 +1,16 @@
+image:
+  repository: ghcr.io/your-org/app
+  tag: latest
+  pullPolicy: Always
+
+service:
+  port: 5000
+
+ingress:
+  enabled: true
+  host: app.example.com
+  annotations: {}
+
+replicaCount: 1
+
+existingSecret: ""
