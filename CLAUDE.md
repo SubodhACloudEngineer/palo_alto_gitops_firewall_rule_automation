@@ -326,3 +326,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | AWX client rewrite | Fixed auth header (`Token` not `Bearer`), added `elapsed` to `get_job_status`, byte-range polling in `stream_job_log`, CD-only design |
 | AWX client v2 | Refactored to use `requests.Session()`, `python-dotenv`, DEBUG logging for API calls, `stream_job_log` never raises (yields errors as log lines) |
 | Deploy routes v2 | Added AKS target support, proper error handling (404/502), `started_at` timestamp, IMAGE_REGISTRY/AKS_CLUSTER_NAME/AKS_RESOURCE_GROUP env vars |
+| Deploy template v2 | Rewrote `deploy.html` with 3 target cards (VM/OpenShift/AKS), conditional fields, SSE log streaming, status badges, result banners, reset functionality |
