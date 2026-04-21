@@ -60,7 +60,8 @@ palo_alto_gitops_firewall_rule_automation/
 │   ├── test_security_validation.py     # Metadata tests are advisory (warnings only)
 │   └── test_network_validation.py
 ├── docs/
-│   └── platform-engineering-review.md # PE team review document
+│   ├── platform-engineering-review.md # PE team review document
+│   └── awx_job_templates.md           # AWX Tower configuration guide (NEW)
 ├── ansible/                            # Legacy - kept for reference, NOT used in CI/CD
 ├── playbooks/                          # AWX deployment playbooks (NEW)
 │   ├── deploy_vm.yml                   # VM deployment (systemd service)
@@ -413,3 +414,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Deploy template v2 | Rewrote `deploy.html` with 3 target cards (VM/OpenShift/AKS), conditional fields, SSE log streaming, status badges, result banners, reset functionality |
 | AWX playbooks | Created `playbooks/deploy_vm.yml`, `deploy_ocp.yml`, `deploy_aks.yml` for VM, OpenShift, and AKS deployments with DEPLOYED_URL output |
 | Helm chart | Created `helm/app-chart/` with Deployment, Service, Ingress templates for AKS deployments |
+| AWX job templates doc | Created `docs/awx_job_templates.md` — handoff guide for AWX Tower configuration with custom credential types |
