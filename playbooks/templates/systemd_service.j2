@@ -1,0 +1,13 @@
+[Unit]
+Description={{ app_name }} Flask Application
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/apps/{{ app_name }}
+ExecStart=/opt/apps/{{ app_name }}/venv/bin/python app.py
+Restart=always
+Environment=PORT=5000
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,135 @@
+---
+# Ansible Playbook for Azure Kubernetes Service (AKS) Deployment
+# Deploys Flask app using pre-built container image via Helm
+# CD-only: AWX triggers this playbook with app_name, image_tag, namespace, image_registry, aks_cluster, aks_rg
+
+- name: Deploy Flask Application to AKS
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  collections:
+    - kubernetes.core
+    - community.kubernetes
+    - azure.azcollection
+
+  vars:
+    app_name: "{{ app_name }}"
+    image_tag: "{{ image_tag }}"
+    namespace: "{{ namespace }}"
+    image_registry: "{{ image_registry }}"
+    aks_cluster: "{{ aks_cluster }}"
+    aks_rg: "{{ aks_rg }}"
+    az_client_id: "{{ lookup('env', 'AZ_CLIENT_ID') }}"
+    az_client_secret: "{{ lookup('env', 'AZ_CLIENT_SECRET') }}"
+    az_tenant_id: "{{ lookup('env', 'AZ_TENANT_ID') }}"
+    aks_ingress_domain: "{{ lookup('env', 'AKS_INGRESS_DOMAIN') }}"
+    akv_name: "{{ lookup('env', 'AKV_NAME') }}"
+    app_port: 5000
+
+  tasks:
+    - name: Display deployment info
+      debug:
+        msg: |
+          ================================================
+          ☁️ Deploying {{ app_name }} to AKS
+          ================================================
+          Cluster: {{ aks_cluster }}
+          Resource Group: {{ aks_rg }}
+          Namespace: {{ namespace }}
+          Image: {{ image_registry }}/{{ app_name }}:{{ image_tag }}
+          Ingress Domain: {{ aks_ingress_domain }}
+          ================================================
+
+    - name: Login to Azure with service principal
+      shell: >
+        az login --service-principal
+        -u "{{ az_client_id }}"
+        -p "{{ az_client_secret }}"
+        --tenant "{{ az_tenant_id }}"
+      no_log: true
+      changed_when: false
+
+    - name: Get AKS credentials
+      shell: >
+        az aks get-credentials
+        --resource-group {{ aks_rg }}
+        --name {{ aks_cluster }}
+        --overwrite-existing
+      changed_when: false
+
+    - name: Ensure namespace exists
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ namespace }}"
+        state: present
+
+    - name: Fetch application secret from Azure Key Vault
+      azure.azcollection.azure_rm_keyvaultsecret_info:
+        vault_uri: "https://{{ akv_name }}.vault.azure.net"
+        name: "{{ app_name }}-secret"
+      register: app_secret
+      ignore_errors: yes
+
+    - name: Create Kubernetes secret from Key Vault value
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ app_name }}-secret"
+            namespace: "{{ namespace }}"
+          stringData:
+            APP_SECRET: "{{ app_secret.secrets[0].secret | default('default-secret-value') }}"
+      when: app_secret is succeeded
+
+    - name: Deploy application using Helm
+      community.kubernetes.helm:
+        name: "{{ app_name }}"
+        chart_ref: "{{ playbook_dir }}/../helm/app-chart"
+        release_namespace: "{{ namespace }}"
+        create_namespace: false
+        values:
+          image:
+            repository: "{{ image_registry }}/{{ app_name }}"
+            tag: "{{ image_tag }}"
+          service:
+            port: "{{ app_port }}"
+          ingress:
+            enabled: true
+            host: "{{ app_name }}.{{ aks_ingress_domain }}"
+            annotations:
+              kubernetes.io/ingress.class: nginx
+          existingSecret: "{{ app_name }}-secret"
+
+    - name: Wait for deployment rollout
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ namespace }}"
+        name: "{{ app_name }}"
+      register: deployment_info
+      retries: 20
+      delay: 5
+      until: >
+        deployment_info.resources | length > 0 and
+        (deployment_info.resources[0].status.readyReplicas | default(0)) >= 1
+
+    - name: Smoke test application endpoint
+      uri:
+        url: "https://{{ app_name }}.{{ aks_ingress_domain }}/health"
+        validate_certs: true
+        status_code: 200
+      register: smoke_test
+      retries: 5
+      delay: 3
+      until: smoke_test.status == 200
+
+    - name: Set deployed URL
+      set_fact:
+        deployed_url: "https://{{ app_name }}.{{ aks_ingress_domain }}"
+
+    - name: Display deployment success
+      debug:
+        msg: "DEPLOYED_URL: {{ deployed_url }}"

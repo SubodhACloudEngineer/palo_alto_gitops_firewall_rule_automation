@@ -62,6 +62,20 @@ palo_alto_gitops_firewall_rule_automation/
 ├── docs/
 │   └── platform-engineering-review.md # PE team review document
 ├── ansible/                            # Legacy - kept for reference, NOT used in CI/CD
+├── playbooks/                          # AWX deployment playbooks (NEW)
+│   ├── deploy_vm.yml                   # VM deployment (systemd service)
+│   ├── deploy_ocp.yml                  # OpenShift deployment (Route + Service)
+│   ├── deploy_aks.yml                  # AKS deployment (Helm-based)
+│   └── templates/
+│       └── systemd_service.j2          # systemd unit file template
+├── helm/
+│   └── app-chart/                      # Generic Flask app Helm chart (NEW)
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/
+│           ├── deployment.yaml
+│           ├── service.yaml
+│           └── ingress.yaml
 ├── requirements.txt
 └── pytest.ini
 ```
@@ -157,6 +171,76 @@ palo_alto_gitops_firewall_rule_automation/
   AKS_RESOURCE_GROUP=your-aks-resource-group
   ```
 - **SSE headers:** `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`
+
+### AWX Deployment Playbooks
+Three Ansible playbooks in `playbooks/` are executed by AWX job templates:
+
+| Playbook | AWX Template | Target | Description |
+|----------|--------------|--------|-------------|
+| `deploy_vm.yml` | `Deploy-App-VM` | Traditional VMs | Git clone, pip venv, systemd service |
+| `deploy_ocp.yml` | `Deploy-App-OCP` | OpenShift | k8s_auth, Deployment, Service, Route |
+| `deploy_aks.yml` | `Deploy-App-AKS` | Azure AKS | az login, helm upgrade --install |
+
+**Common extra_vars:**
+- `app_name` — Application name (used for service name, paths, labels)
+- `version` / `image_tag` — Image tag to deploy
+
+**VM-specific vars:**
+- `vm_host` — Target VM hostname (Ansible inventory host)
+- `app_port` — Application port (default: 5000)
+- `app_user` — Linux user to run service (default: appuser)
+
+**OpenShift-specific vars:**
+- `namespace` — OpenShift project/namespace
+- `image_registry` — Container registry URL
+- `ocp_api_url` — OpenShift API endpoint
+- `key_vault_name` — Azure Key Vault for secrets
+
+**AKS-specific vars:**
+- `namespace` — Kubernetes namespace
+- `image_registry` — Container registry URL
+- `aks_cluster` — AKS cluster name
+- `aks_rg` — AKS resource group
+
+**DEPLOYED_URL output:** All playbooks emit `debug: msg: "DEPLOYED_URL: {{ url }}"` which `awx_client.py` parses to extract the deployed application URL.
+
+**Required Ansible Collections:**
+- `kubernetes.core` (OpenShift, AKS)
+- `redhat.openshift` (OpenShift Routes)
+- `azure.azcollection` (AKS authentication)
+
+### Helm Chart (AKS Deployments)
+`helm/app-chart/` is a generic Flask application chart used by `deploy_aks.yml`:
+
+```yaml
+# values.yaml defaults
+image:
+  repository: ghcr.io/your-org/app
+  tag: latest
+  pullPolicy: Always
+service:
+  port: 5000
+ingress:
+  enabled: true
+  host: app.example.com
+replicaCount: 1
+existingSecret: ""  # Reference pre-created K8s secret for env vars
+```
+
+**Templates:**
+- `deployment.yaml` — Deployment with health probes, optional secretRef
+- `service.yaml` — ClusterIP service (port 80 → container port)
+- `ingress.yaml` — Ingress with TLS (conditional on `.Values.ingress.enabled`)
+
+**Usage:**
+```bash
+helm upgrade --install my-app ./helm/app-chart \
+  --set image.repository=ghcr.io/org/app \
+  --set image.tag=v1.0.0 \
+  --set ingress.host=my-app.example.com \
+  --set existingSecret=my-app-secrets \
+  -n default
+```
 
 ---
 
@@ -327,3 +411,5 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | AWX client v2 | Refactored to use `requests.Session()`, `python-dotenv`, DEBUG logging for API calls, `stream_job_log` never raises (yields errors as log lines) |
 | Deploy routes v2 | Added AKS target support, proper error handling (404/502), `started_at` timestamp, IMAGE_REGISTRY/AKS_CLUSTER_NAME/AKS_RESOURCE_GROUP env vars |
 | Deploy template v2 | Rewrote `deploy.html` with 3 target cards (VM/OpenShift/AKS), conditional fields, SSE log streaming, status badges, result banners, reset functionality |
+| AWX playbooks | Created `playbooks/deploy_vm.yml`, `deploy_ocp.yml`, `deploy_aks.yml` for VM, OpenShift, and AKS deployments with DEPLOYED_URL output |
+| Helm chart | Created `helm/app-chart/` with Deployment, Service, Ingress templates for AKS deployments |
