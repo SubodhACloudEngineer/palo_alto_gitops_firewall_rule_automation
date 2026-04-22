@@ -415,3 +415,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | AWX playbooks | Created `playbooks/deploy_vm.yml`, `deploy_ocp.yml`, `deploy_aks.yml` for VM, OpenShift, and AKS deployments with DEPLOYED_URL output |
 | Helm chart | Created `helm/app-chart/` with Deployment, Service, Ingress templates for AKS deployments |
 | AWX job templates doc | Created `docs/awx_job_templates.md` — handoff guide for AWX Tower configuration with custom credential types |
+| Deploy template JS fix | Fixed non-responsive target cards: changed `{% block scripts %}` to `{% block extra_js %}` to match base.html; added `.service-card.selected` CSS |
