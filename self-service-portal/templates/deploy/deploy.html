@@ -100,8 +100,9 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
+    console.log('[Deploy] JavaScript loaded successfully');
     // State
     let selectedTarget = "vm";
     let currentJobId = null;
@@ -122,29 +123,30 @@
 
     // Target Selection
     function selectTarget(target) {
+        console.log('[Deploy] selectTarget called with:', target);
         selectedTarget = target;
 
         // Update card styles
         document.querySelectorAll('#target-cards .service-card').forEach(card => {
             card.classList.remove('selected');
-            card.style.borderColor = '#e0e0e0';
-            card.style.backgroundColor = 'white';
         });
 
         const selectedCard = document.querySelector('#target-cards .service-card[data-target="' + target + '"]');
         selectedCard.classList.add('selected');
-        selectedCard.style.borderColor = '#0067B1';
-        selectedCard.style.backgroundColor = '#E3F2FD';
-        selectedCard.querySelector('input[type="radio"]').checked = true;
+        const radioInput = selectedCard.querySelector('input[type="radio"]');
+        radioInput.checked = true;
+        console.log('[Deploy] Radio input value:', radioInput.value, 'checked:', radioInput.checked);
 
         // Show/hide conditional fields
         if (target === 'vm') {
             vmHostField.style.display = 'block';
             namespaceField.style.display = 'none';
+            console.log('[Deploy] Showing VM Host field, hiding Namespace field');
         } else {
             vmHostField.style.display = 'none';
             namespaceField.style.display = 'block';
             namespaceLabel.textContent = target === 'openshift' ? 'Target Namespace' : 'AKS Namespace';
+            console.log('[Deploy] Hiding VM Host field, showing Namespace field for:', target);
         }
     }
 
@@ -364,6 +366,7 @@
     document.head.appendChild(style);
 
     // Initialize
+    console.log('[Deploy] Initializing with target: vm');
     selectTarget('vm');
 </script>
-{% endblock %}
+{% endblock extra_js %}
