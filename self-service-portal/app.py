@@ -66,6 +66,9 @@ GIT_USER_EMAIL = os.environ.get("GIT_USER_EMAIL", "portal@example.com")
 # Demo mode - simulates deployments without calling external systems
 DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 
+# AWX base URL for job links
+AWX_BASE_URL = os.environ.get("AWX_BASE_URL", "http://172.20.47.61:30080")
+
 # In-memory storage for requests
 service_requests = []
 request_counter = 1000
@@ -1533,7 +1536,7 @@ def deploy_app():
 
     # Trigger AWX job or simulate in demo mode
     if DEMO_MODE:
-        awx_job = demo_simulator.simulate_awx_job(app_id, target)
+        awx_job = demo_simulator.simulate_awx_job(app_id, target, AWX_BASE_URL)
         job_id = awx_job['job_id']
     else:
         try:
@@ -1558,6 +1561,10 @@ def deploy_app():
         'awx_job': awx_job
     }
 
+    # Store ArgoCD info for AKS deployments
+    if target == 'aks':
+        deploy_jobs[job_id]['argocd_url'] = f"https://localhost:8080/applications/{app_id}"
+
     # Return response with AWX job info if in demo mode
     response = {'job_id': job_id}
     if DEMO_MODE and awx_job:
@@ -1566,6 +1573,11 @@ def deploy_app():
         response['awx_launched_by'] = awx_job['launched_by']
         response['awx_started_at'] = awx_job['created']
         response['awx_url'] = awx_job['awx_url']
+        response['argocd_url'] = awx_job.get('argocd_url')
+        response['uses_argocd'] = awx_job.get('uses_argocd', False)
+    else:
+        response['argocd_url'] = f"https://localhost:8080/applications/{app_id}" if target == 'aks' else None
+        response['uses_argocd'] = target == 'aks'
 
     return jsonify(response)
 
@@ -1599,6 +1611,8 @@ def deploy_status(job_id):
                 # Final status dict - update job record
                 deploy_jobs[job_id]['status'] = item.get('status', 'unknown')
                 deploy_jobs[job_id]['url'] = item.get('url')
+                if item.get('argocd_url'):
+                    deploy_jobs[job_id]['argocd_url'] = item.get('argocd_url')
                 yield f"data: {json.dumps(item)}\n\n"
                 return
             else:
