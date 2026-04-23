@@ -32,6 +32,7 @@ palo_alto_gitops_firewall_rule_automation/
 ├── self-service-portal/
 │   ├── app.py                          # Flask app (monolithic, 1400+ lines)
 │   ├── awx_client.py                   # AWX REST API client (NEW)
+│   ├── demo_simulator.py               # Demo mode deployment simulator (NEW)
 │   ├── apps.json                       # Deployable apps config (NEW)
 │   ├── env.example                     # Copy to .env to configure locally
 │   ├── service_catalog/
@@ -173,6 +174,27 @@ palo_alto_gitops_firewall_rule_automation/
   AKS_RESOURCE_GROUP=your-aks-resource-group
   ```
 - **SSE headers:** `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`
+
+### Demo Mode
+When `DEMO_MODE=true` in `.env`, the deployment portal simulates realistic deployments without calling AWX, GitHub, or any external systems.
+
+**Configuration:**
+```
+DEMO_MODE=true
+```
+
+**Behavior:**
+- `POST /deploy` generates a fake job_id (5-digit random number) instead of calling AWX
+- `GET /deploy/status/<job_id>` streams simulated Ansible log output from `demo_simulator.py`
+- Simulated logs include realistic timing (0.3-1.2s between lines, 2-4s for key steps)
+- All three targets (VM, OpenShift, AKS) have unique, authentic-looking log sequences
+- Final `DEPLOYED_URL` is generated based on target type
+- No "DEMO" or "SIMULATION" labels appear anywhere — output looks completely real
+
+**Use cases:**
+- Demos to stakeholders without AWX infrastructure
+- Development and testing of the portal UI
+- Training new team members on the deployment workflow
 
 ### AWX Deployment Playbooks
 Three Ansible playbooks in `playbooks/` are executed by AWX job templates:
@@ -418,3 +440,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | AWX job templates doc | Created `docs/awx_job_templates.md` — handoff guide for AWX Tower configuration with custom credential types |
 | Deploy template JS fix | Fixed non-responsive target cards: changed `{% block scripts %}` to `{% block extra_js %}` to match base.html; added `.service-card.selected` CSS |
 | App selector & GitHub tags | Added `apps.json` config, app dropdown selector, auto-fetch latest GitHub release tag, `get_latest_github_tag()` in awx_client.py, `/deploy/app-info/<app_id>` route |
+| Demo mode | Added `DEMO_MODE` flag and `demo_simulator.py` — simulates realistic AWX deployments without external calls for demos/testing |
