@@ -32,6 +32,7 @@ palo_alto_gitops_firewall_rule_automation/
 ├── self-service-portal/
 │   ├── app.py                          # Flask app (monolithic, 1400+ lines)
 │   ├── awx_client.py                   # AWX REST API client (NEW)
+│   ├── apps.json                       # Deployable apps config (NEW)
 │   ├── env.example                     # Copy to .env to configure locally
 │   ├── service_catalog/
 │   │   ├── service_catalog_palo_alto_firewall.json
@@ -416,3 +417,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Helm chart | Created `helm/app-chart/` with Deployment, Service, Ingress templates for AKS deployments |
 | AWX job templates doc | Created `docs/awx_job_templates.md` — handoff guide for AWX Tower configuration with custom credential types |
 | Deploy template JS fix | Fixed non-responsive target cards: changed `{% block scripts %}` to `{% block extra_js %}` to match base.html; added `.service-card.selected` CSS |
+| App selector & GitHub tags | Added `apps.json` config, app dropdown selector, auto-fetch latest GitHub release tag, `get_latest_github_tag()` in awx_client.py, `/deploy/app-info/<app_id>` route |

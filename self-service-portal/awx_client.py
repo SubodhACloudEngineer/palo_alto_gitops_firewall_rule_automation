@@ -221,6 +221,58 @@ def stream_job_log(job_id: str):
         return
 
 
+# GitHub API Configuration
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
+
+
+def get_latest_github_tag(repo_owner: str, repo_name: str) -> dict:
+    """
+    Fetches the latest release tag from GitHub Releases API.
+    Endpoint: GET https://api.github.com/repos/<owner>/<repo>/releases/latest
+
+    Returns:
+      { "tag": "v1.0.3", "published_at": "2024-01-15T10:00:00Z", "found": True }
+      { "tag": "", "published_at": "", "found": False }   on any error
+
+    Auth:
+      If GITHUB_TOKEN is set in .env, include header:
+        Authorization: Bearer <GITHUB_TOKEN>
+      Otherwise call unauthenticated (rate limit: 60 req/hr).
+
+    Timeout: 5 seconds.
+    Never raise — return found: False on any exception.
+    Log errors at WARNING level.
+    """
+    url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/releases/latest'
+    headers = {
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+    }
+    if GITHUB_TOKEN:
+        headers['Authorization'] = f'Bearer {GITHUB_TOKEN}'
+
+    try:
+        logger.debug(f'GET {url}')
+        resp = requests.get(url, headers=headers, timeout=5)
+
+        if resp.status_code == 200:
+            data = resp.json()
+            tag = data.get('tag_name', '')
+            published_at = data.get('published_at', '')
+            logger.debug(f'Found latest tag: {tag} published at {published_at}')
+            return {'tag': tag, 'published_at': published_at, 'found': True}
+        elif resp.status_code == 404:
+            logger.warning(f'No releases found for {repo_owner}/{repo_name}')
+            return {'tag': '', 'published_at': '', 'found': False}
+        else:
+            logger.warning(f'GitHub API error: HTTP {resp.status_code} for {repo_owner}/{repo_name}')
+            return {'tag': '', 'published_at': '', 'found': False}
+
+    except Exception as e:
+        logger.warning(f'Error fetching GitHub releases for {repo_owner}/{repo_name}: {e}')
+        return {'tag': '', 'published_at': '', 'found': False}
+
+
 if __name__ == '__main__':
     import sys
     import json

@@ -1,0 +1,34 @@
+{
+  "apps": [
+    {
+      "id": "my-flask-app",
+      "display_name": "Firewall Audit",
+      "description": "Flask-based web portal that validates the rulebase against the matrix, and generates a compliance report.",
+      "repo_owner": "SubodhACloudEngineer",
+      "repo_name": "firewall_audit",
+      "repo_url": "https://github.com/SubodhACloudEngineer/firewall_audit.git",
+      "image_registry": "ghcr.io/SubodhACloudEngineer",
+      "default_namespace": "flask-app-dev"
+    },
+    {
+      "id": "inventory-service",
+      "display_name": "Self Service Portal",
+      "description": "A self-service portal for infrastructure automation using GitOps principles.",
+      "repo_owner": "SubodhACloudEngineer",
+      "repo_name": "palo_alto_gitops_firewall_rule_automation",
+      "repo_url": "https://github.com/SubodhACloudEngineer/palo_alto_gitops_firewall_rule_automation.git",
+      "image_registry": "ghcr.io/SubodhACloudEngineer",
+      "default_namespace": "inventory-dev"
+    },
+    {
+      "id": "notification-service",
+      "display_name": "ALE Switch Management Suite",
+      "description": "An automated network switch management suite for managing switch firmware",
+      "repo_owner": "SubodhACloudEngineer",
+      "repo_name": "digipolis",
+      "repo_url": "https://github.com/SubodhACloudEngineer/digipolis.git",
+      "image_registry": "ghcr.io/SubodhACloudEngineer",
+      "default_namespace": "notifications-dev"
+    }
+  ]
+}
