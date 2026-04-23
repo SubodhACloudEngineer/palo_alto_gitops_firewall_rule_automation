@@ -1402,10 +1402,58 @@ def api_request_status(request_id):
 # DEPLOY APPLICATION ROUTES
 # ============================================
 
+def load_apps_config():
+    """Load apps configuration from apps.json"""
+    apps_file = os.path.join(PORTAL_DIR, 'apps.json')
+    try:
+        with open(apps_file, 'r') as f:
+            data = json.load(f)
+            return data.get('apps', [])
+    except Exception as e:
+        print(f'Error loading apps.json: {e}')
+        return []
+
+
+def find_app_by_id(app_id):
+    """Find an app by its id in apps.json"""
+    apps = load_apps_config()
+    for app in apps:
+        if app.get('id') == app_id:
+            return app
+    return None
+
+
 @app.route('/deploy')
 def deploy_form():
     """Render the deploy application form"""
-    return render_template('deploy/deploy.html', title="Deploy Application")
+    apps = load_apps_config()
+    return render_template('deploy/deploy.html', title="Deploy Application", apps=apps)
+
+
+@app.route('/deploy/app-info/<app_id>')
+def deploy_app_info(app_id):
+    """Fetch app info and latest GitHub release tag"""
+    app = find_app_by_id(app_id)
+    if not app:
+        return jsonify({'error': 'App not found'}), 404
+
+    # Fetch latest tag from GitHub
+    tag_result = awx_client.get_latest_github_tag(
+        app.get('repo_owner', ''),
+        app.get('repo_name', '')
+    )
+
+    return jsonify({
+        'id': app.get('id', ''),
+        'display_name': app.get('display_name', ''),
+        'description': app.get('description', ''),
+        'repo_url': app.get('repo_url', ''),
+        'image_registry': app.get('image_registry', ''),
+        'default_namespace': app.get('default_namespace', ''),
+        'latest_tag': tag_result.get('tag', ''),
+        'published_at': tag_result.get('published_at', ''),
+        'tag_found': tag_result.get('found', False)
+    })
 
 
 @app.route('/deploy', methods=['POST'])
@@ -1417,18 +1465,27 @@ def deploy_app():
         return jsonify({'error': 'Request body must be JSON'}), 400
 
     # Validate required fields
-    app_name = data.get('app_name', '').strip() if data.get('app_name') else ''
+    app_id = data.get('app_id', '').strip() if data.get('app_id') else ''
     version = data.get('version', '').strip() if data.get('version') else ''
     target = data.get('target', '').strip() if data.get('target') else ''
 
-    if not app_name:
-        return jsonify({'error': 'app_name is required'}), 400
+    if not app_id:
+        return jsonify({'error': 'app_id is required'}), 400
 
     if not version:
         return jsonify({'error': 'version is required'}), 400
 
     if target not in ('vm', 'openshift', 'aks'):
         return jsonify({'error': 'target must be one of: "vm", "openshift", "aks"'}), 400
+
+    # Look up app from apps.json (source of truth)
+    app = find_app_by_id(app_id)
+    if not app:
+        return jsonify({'error': 'Unknown app'}), 400
+
+    app_name = app.get('id', '')
+    repo_url = app.get('repo_url', '')
+    image_registry = app.get('image_registry', '')
 
     # Target-specific validation and extra_vars
     if target == 'vm':
@@ -1438,7 +1495,8 @@ def deploy_app():
         extra_vars = {
             'app_name': app_name,
             'version': version,
-            'vm_host': vm_host
+            'vm_host': vm_host,
+            'repo_url': repo_url
         }
         template_name = 'Deploy-App-VM'
 
@@ -1448,7 +1506,7 @@ def deploy_app():
             'app_name': app_name,
             'image_tag': version,
             'namespace': namespace,
-            'image_registry': os.getenv('IMAGE_REGISTRY', 'ghcr.io/your-org')
+            'image_registry': image_registry
         }
         template_name = 'Deploy-App-OCP'
 
@@ -1458,7 +1516,7 @@ def deploy_app():
             'app_name': app_name,
             'image_tag': version,
             'namespace': namespace,
-            'image_registry': os.getenv('IMAGE_REGISTRY', 'ghcr.io/your-org'),
+            'image_registry': image_registry,
             'aks_cluster': os.getenv('AKS_CLUSTER_NAME', ''),
             'aks_rg': os.getenv('AKS_RESOURCE_GROUP', '')
         }

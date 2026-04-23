@@ -20,33 +20,48 @@
         <!-- Deploy Form -->
         <form id="deploy-form">
             <div class="form-group">
-                <label for="app-name">Application Name <span class="required">*</span></label>
-                <input type="text" id="app-name" name="app_name" required placeholder="e.g. my-flask-app">
+                <label for="app-select">Application <span class="required">*</span></label>
+                <select id="app-select" name="app_id" required>
+                    <option value="" disabled selected>— Select an application —</option>
+                    {% for app in apps %}
+                    <option value="{{ app.id }}"
+                            data-owner="{{ app.repo_owner }}"
+                            data-repo="{{ app.repo_name }}"
+                            data-namespace="{{ app.default_namespace }}"
+                            data-description="{{ app.description }}">
+                        {{ app.display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <p id="app-description" style="display: none; font-size: 0.85em; color: #666; margin-top: 8px;"></p>
             </div>
 
             <div class="form-group">
-                <label for="version">Image Tag / Version <span class="required">*</span></label>
+                <label for="version">
+                    Image Tag / Version <span class="required">*</span>
+                    <span id="tag-spinner" style="display: none; margin-left: 8px;">
+                        <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #0067B1; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+                    </span>
+                </label>
                 <input type="text" id="version" name="version" required placeholder="e.g. v1.0.3-abc123  or  latest">
+                <div id="tag-badge" style="display: none; font-size: 0.85em; margin-top: 6px; padding: 6px 10px; border-radius: 4px;"></div>
                 <small>Use the exact image tag produced by your CI pipeline.</small>
             </div>
 
             <div class="section-title">Deployment Target</div>
 
             <div class="service-grid" id="target-cards" style="grid-template-columns: repeat(3, 1fr); margin-top: 15px; margin-bottom: 25px;">
-                <div class="service-card selected" data-target="vm" onclick="selectTarget('vm')">
-                    <input type="radio" name="target" value="vm" checked style="display: none;">
+                <div class="service-card target-card selected" data-target="vm">
                     <div class="service-icon">🖥️</div>
                     <div class="service-title">On-Prem Virtual Machine</div>
                     <div class="service-description">SSH · git clone · systemd</div>
                 </div>
-                <div class="service-card" data-target="openshift" onclick="selectTarget('openshift')">
-                    <input type="radio" name="target" value="openshift" style="display: none;">
+                <div class="service-card target-card" data-target="openshift">
                     <div class="service-icon">🔴</div>
                     <div class="service-title">OpenShift on Azure (ARO)</div>
                     <div class="service-description">oc apply / helm · OCP Route</div>
                 </div>
-                <div class="service-card" data-target="aks" onclick="selectTarget('aks')">
-                    <input type="radio" name="target" value="aks" style="display: none;">
+                <div class="service-card target-card" data-target="aks">
                     <div class="service-icon">☁️</div>
                     <div class="service-title">Azure Kubernetes Service (AKS)</div>
                     <div class="service-description">helm upgrade · NGINX Ingress</div>
@@ -93,75 +108,180 @@
 
             <!-- Reset Button -->
             <div class="button-group" style="margin-top: 20px;">
-                <button type="button" id="reset-btn" class="cancel-btn" style="display: none;" onclick="resetPage()">Deploy Another App</button>
+                <button type="button" id="reset-btn" class="cancel-btn" style="display: none;">Deploy Another App</button>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
     console.log('[Deploy] JavaScript loaded successfully');
+
     // State
-    let selectedTarget = "vm";
-    let currentJobId = null;
-    let eventSource = null;
+    var selectedTarget = 'vm';
+    var currentJobId = null;
+    var eventSource = null;
 
     // DOM Elements
-    const form = document.getElementById('deploy-form');
-    const submitBtn = document.getElementById('submit-btn');
-    const logPanel = document.getElementById('log-panel');
-    const logBox = document.getElementById('log-box');
-    const statusBadge = document.getElementById('status-badge');
-    const jobIdDisplay = document.getElementById('job-id-display');
-    const resultBanner = document.getElementById('result-banner');
-    const resetBtn = document.getElementById('reset-btn');
-    const vmHostField = document.getElementById('vm-host-field');
-    const namespaceField = document.getElementById('namespace-field');
-    const namespaceLabel = document.getElementById('namespace-label');
+    var form = document.getElementById('deploy-form');
+    var appSelect = document.getElementById('app-select');
+    var versionInput = document.getElementById('version');
+    var tagSpinner = document.getElementById('tag-spinner');
+    var tagBadge = document.getElementById('tag-badge');
+    var appDescription = document.getElementById('app-description');
+    var submitBtn = document.getElementById('submit-btn');
+    var logPanel = document.getElementById('log-panel');
+    var logBox = document.getElementById('log-box');
+    var statusBadge = document.getElementById('status-badge');
+    var jobIdDisplay = document.getElementById('job-id-display');
+    var resultBanner = document.getElementById('result-banner');
+    var resetBtn = document.getElementById('reset-btn');
+    var vmHostField = document.getElementById('vm-host-field');
+    var namespaceField = document.getElementById('namespace-field');
+    var namespaceLabel = document.getElementById('namespace-label');
+    var namespaceInput = document.getElementById('namespace');
+    var vmHostInput = document.getElementById('vm-host');
 
-    // Target Selection
-    function selectTarget(target) {
-        console.log('[Deploy] selectTarget called with:', target);
-        selectedTarget = target;
+    // Helper: Time ago
+    function timeAgo(isoDateString) {
+        if (!isoDateString) return '';
+        var date = new Date(isoDateString);
+        var now = new Date();
+        var seconds = Math.floor((now - date) / 1000);
 
-        // Update card styles
-        document.querySelectorAll('#target-cards .service-card').forEach(card => {
-            card.classList.remove('selected');
-        });
+        if (seconds < 60) return 'just now';
+        var minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return minutes + ' minute' + (minutes === 1 ? '' : 's') + ' ago';
+        var hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+        var days = Math.floor(hours / 24);
+        if (days < 14) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+        var weeks = Math.floor(days / 7);
+        return weeks + ' week' + (weeks === 1 ? '' : 's') + ' ago';
+    }
 
-        const selectedCard = document.querySelector('#target-cards .service-card[data-target="' + target + '"]');
-        selectedCard.classList.add('selected');
-        const radioInput = selectedCard.querySelector('input[type="radio"]');
-        radioInput.checked = true;
-        console.log('[Deploy] Radio input value:', radioInput.value, 'checked:', radioInput.checked);
+    // App Selection Handler
+    appSelect.addEventListener('change', function() {
+        var selectedOption = appSelect.options[appSelect.selectedIndex];
+        var appId = appSelect.value;
+        var description = selectedOption.getAttribute('data-description') || '';
+        var defaultNamespace = selectedOption.getAttribute('data-namespace') || 'default';
 
-        // Show/hide conditional fields
+        console.log('[Deploy] App selected:', appId);
+
+        // Show description
+        if (description) {
+            appDescription.textContent = description;
+            appDescription.style.display = 'block';
+        } else {
+            appDescription.style.display = 'none';
+        }
+
+        // Pre-fill namespace
+        namespaceInput.value = defaultNamespace;
+
+        // Clear tag input, show spinner
+        versionInput.value = '';
+        tagSpinner.style.display = 'inline';
+        tagBadge.style.display = 'none';
+
+        // Fetch app info with latest tag
+        fetch('/deploy/app-info/' + appId)
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                tagSpinner.style.display = 'none';
+
+                if (data.tag_found) {
+                    versionInput.value = data.latest_tag;
+                    tagBadge.style.display = 'block';
+                    tagBadge.style.backgroundColor = '#E8F5E9';
+                    tagBadge.style.color = '#2E7D32';
+                    tagBadge.innerHTML = '✓ Latest: <strong>' + data.latest_tag + '</strong>  ·  released ' + timeAgo(data.published_at);
+                } else {
+                    versionInput.value = '';
+                    tagBadge.style.display = 'block';
+                    tagBadge.style.backgroundColor = '#FFF3E0';
+                    tagBadge.style.color = '#E65100';
+                    tagBadge.textContent = '⚠ No releases found — enter tag manually';
+                }
+            })
+            .catch(function(error) {
+                console.log('[Deploy] Error fetching app info:', error);
+                tagSpinner.style.display = 'none';
+                tagBadge.style.display = 'block';
+                tagBadge.style.backgroundColor = '#f5f5f5';
+                tagBadge.style.color = '#666';
+                tagBadge.textContent = 'Could not fetch tags — enter manually';
+            });
+    });
+
+    // Target Card Selection
+    function updateConditionalField(target) {
         if (target === 'vm') {
             vmHostField.style.display = 'block';
             namespaceField.style.display = 'none';
-            console.log('[Deploy] Showing VM Host field, hiding Namespace field');
-        } else {
+        } else if (target === 'openshift') {
             vmHostField.style.display = 'none';
             namespaceField.style.display = 'block';
-            namespaceLabel.textContent = target === 'openshift' ? 'Target Namespace' : 'AKS Namespace';
-            console.log('[Deploy] Hiding VM Host field, showing Namespace field for:', target);
+            namespaceLabel.textContent = 'Target Namespace (OpenShift)';
+        } else if (target === 'aks') {
+            vmHostField.style.display = 'none';
+            namespaceField.style.display = 'block';
+            namespaceLabel.textContent = 'AKS Namespace';
         }
+        console.log('[Deploy] Conditional field updated for target:', target);
     }
+
+    // Attach click handlers to target cards
+    document.querySelectorAll('.target-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+            console.log('[Deploy] Target card clicked:', this.getAttribute('data-target'));
+
+            // Remove selected state from all cards
+            document.querySelectorAll('.target-card').forEach(function(c) {
+                c.classList.remove('selected');
+            });
+
+            // Apply selected state to clicked card
+            this.classList.add('selected');
+
+            // Update state
+            selectedTarget = this.getAttribute('data-target');
+            console.log('[Deploy] Selected target:', selectedTarget);
+
+            // Update conditional field
+            updateConditionalField(selectedTarget);
+        });
+    });
 
     // Form Submission
     form.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const appName = document.getElementById('app-name').value.trim();
-        const version = document.getElementById('version').value.trim();
-        const vmHost = document.getElementById('vm-host').value.trim();
-        const namespace = document.getElementById('namespace').value.trim() || 'default';
+        var appId = appSelect.value;
+        var version = versionInput.value.trim();
+        var vmHost = vmHostInput.value.trim();
+        var namespace = namespaceInput.value.trim() || 'default';
 
         // Validation
-        if (!appName) {
-            alert('Application Name is required.');
+        if (!appId) {
+            alert('Please select an application.');
             return;
         }
         if (!version) {
@@ -174,8 +294,8 @@
         }
 
         // Build request body
-        const body = {
-            app_name: appName,
+        var body = {
+            app_id: appId,
             version: version,
             target: selectedTarget
         };
@@ -185,6 +305,8 @@
         } else {
             body.namespace = namespace;
         }
+
+        console.log('[Deploy] Submitting:', body);
 
         // Show log panel and disable form
         logPanel.style.display = 'block';
@@ -201,8 +323,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
             if (data.error) {
                 appendLogLine('ERROR: ' + data.error);
                 setStatus('FAILED');
@@ -221,12 +345,13 @@
 
             eventSource.onmessage = function(e) {
                 try {
-                    const eventData = JSON.parse(e.data);
+                    var eventData = JSON.parse(e.data);
                     if (eventData.status) {
                         // Final event
+                        var appDisplayName = appSelect.options[appSelect.selectedIndex].textContent.trim();
                         if (eventData.status === 'done') {
                             setStatus('DONE');
-                            showResultBanner('success', eventData.url, appName, version, selectedTarget);
+                            showResultBanner('success', eventData.url, appDisplayName, version, selectedTarget);
                         } else {
                             setStatus('FAILED');
                             showResultBanner('failure', '');
@@ -253,7 +378,7 @@
                 resetBtn.style.display = 'inline-block';
             };
         })
-        .catch(error => {
+        .catch(function(error) {
             appendLogLine('ERROR: ' + error.message);
             setStatus('FAILED');
             setFormDisabled(false);
@@ -264,7 +389,7 @@
 
     // Helper: Append log line
     function appendLogLine(text) {
-        const line = document.createElement('div');
+        var line = document.createElement('div');
         line.textContent = text;
         line.style.marginBottom = '2px';
         logBox.appendChild(line);
@@ -290,9 +415,9 @@
     // Helper: Show result banner
     function showResultBanner(type, url, appName, version, target) {
         resultBanner.style.display = 'block';
-        const resultTitle = document.getElementById('result-title');
-        const resultDetails = document.getElementById('result-details');
-        const resultLink = document.getElementById('result-link');
+        var resultTitle = document.getElementById('result-title');
+        var resultDetails = document.getElementById('result-details');
+        var resultLink = document.getElementById('result-link');
 
         if (type === 'success') {
             resultBanner.style.backgroundColor = '#E8F5E9';
@@ -319,12 +444,12 @@
 
     // Helper: Set form disabled state
     function setFormDisabled(disabled) {
-        document.getElementById('app-name').disabled = disabled;
-        document.getElementById('version').disabled = disabled;
-        document.getElementById('vm-host').disabled = disabled;
-        document.getElementById('namespace').disabled = disabled;
+        appSelect.disabled = disabled;
+        versionInput.disabled = disabled;
+        vmHostInput.disabled = disabled;
+        namespaceInput.disabled = disabled;
         submitBtn.disabled = disabled;
-        document.querySelectorAll('#target-cards .service-card').forEach(card => {
+        document.querySelectorAll('.target-card').forEach(function(card) {
             card.style.pointerEvents = disabled ? 'none' : 'auto';
             card.style.opacity = disabled ? '0.6' : '1';
         });
@@ -343,14 +468,21 @@
 
         // Reset form
         form.reset();
-        document.getElementById('namespace').value = 'default';
+        namespaceInput.value = 'default';
+        appDescription.style.display = 'none';
+        tagBadge.style.display = 'none';
 
         // Re-enable form
         setFormDisabled(false);
         submitBtn.innerHTML = '🚀 Deploy Application';
 
         // Reset target selection to VM
-        selectTarget('vm');
+        document.querySelectorAll('.target-card').forEach(function(c) {
+            c.classList.remove('selected');
+        });
+        document.querySelector('.target-card[data-target="vm"]').classList.add('selected');
+        selectedTarget = 'vm';
+        updateConditionalField('vm');
 
         // Clear state
         currentJobId = null;
@@ -360,13 +492,12 @@
         }
     }
 
-    // Add pulse animation style
-    const style = document.createElement('style');
-    style.textContent = '@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }';
-    document.head.appendChild(style);
+    // Attach reset button handler
+    resetBtn.addEventListener('click', resetPage);
 
-    // Initialize
+    // Initialize: simulate click on first card
     console.log('[Deploy] Initializing with target: vm');
-    selectTarget('vm');
+    document.querySelector('.target-card[data-target="vm"]').click();
+});
 </script>
 {% endblock extra_js %}
