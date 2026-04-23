@@ -84,8 +84,28 @@
             </div>
         </form>
 
+        <!-- AWX Job Panel (hidden initially) -->
+        <div id="awx-job-panel" style="display: none; margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; font-size: 16px; color: #333;">AWX Job Details</h3>
+                <span id="awx-job-status" class="status status-pending" style="animation: pulse 1.5s infinite;">PENDING</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px 15px; font-size: 14px;">
+                <span style="color: #666;">Job ID:</span>
+                <span id="awx-job-id" style="font-weight: 600; color: #333;">#—</span>
+                <span style="color: #666;">Template:</span>
+                <span id="awx-template-name" style="color: #333;">—</span>
+                <span style="color: #666;">Launched by:</span>
+                <span id="awx-launched-by" style="color: #333;">—</span>
+                <span style="color: #666;">Started:</span>
+                <span id="awx-started-at" style="color: #333;">—</span>
+                <span style="color: #666;">AWX Console:</span>
+                <a id="awx-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none;">🔗 View in AWX →</a>
+            </div>
+        </div>
+
         <!-- Log Panel (hidden initially) -->
-        <div id="log-panel" style="display: none; margin-top: 40px;">
+        <div id="log-panel" style="display: none; margin-top: 20px;">
             <div class="section-title">Deployment Log</div>
 
             <!-- Status Bar -->
@@ -123,6 +143,10 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
 }
+.status-waiting {
+    background-color: #FFA726;
+    color: white;
+}
 </style>
 {% endblock %}
 
@@ -135,6 +159,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var selectedTarget = 'vm';
     var currentJobId = null;
     var eventSource = null;
+    var deployStartTime = null;
+    var awxStatusTimeouts = [];
 
     // DOM Elements
     var form = document.getElementById('deploy-form');
@@ -155,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var namespaceLabel = document.getElementById('namespace-label');
     var namespaceInput = document.getElementById('namespace');
     var vmHostInput = document.getElementById('vm-host');
+    var awxJobPanel = document.getElementById('awx-job-panel');
 
     // Helper: Time ago
     function timeAgo(isoDateString) {
@@ -172,6 +199,45 @@ document.addEventListener('DOMContentLoaded', function() {
         if (days < 14) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
         var weeks = Math.floor(days / 7);
         return weeks + ' week' + (weeks === 1 ? '' : 's') + ' ago';
+    }
+
+    // Helper: Format elapsed time
+    function formatElapsed(seconds) {
+        var mins = Math.floor(seconds / 60);
+        var secs = Math.floor(seconds % 60);
+        if (mins > 0) {
+            return 'completed in ' + mins + 'm ' + secs + 's';
+        }
+        return 'completed in ' + secs + 's';
+    }
+
+    // Helper: Set AWX status badge
+    function setAwxStatus(state) {
+        var badge = document.getElementById('awx-job-status');
+        badge.textContent = state;
+        badge.className = 'status';
+
+        if (state === 'PENDING') {
+            badge.style.backgroundColor = '#9E9E9E';
+            badge.style.color = 'white';
+            badge.style.animation = 'pulse 1.5s infinite';
+        } else if (state === 'WAITING') {
+            badge.style.backgroundColor = '#FFA726';
+            badge.style.color = 'white';
+            badge.style.animation = 'pulse 1.5s infinite';
+        } else if (state === 'RUNNING') {
+            badge.style.backgroundColor = '#42A5F5';
+            badge.style.color = 'white';
+            badge.style.animation = 'pulse 1.5s infinite';
+        } else if (state === 'DONE') {
+            badge.style.backgroundColor = '#66BB6A';
+            badge.style.color = 'white';
+            badge.style.animation = 'none';
+        } else if (state === 'FAILED') {
+            badge.style.backgroundColor = '#EF5350';
+            badge.style.color = 'white';
+            badge.style.animation = 'none';
+        }
     }
 
     // App Selection Handler
@@ -308,14 +374,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         console.log('[Deploy] Submitting:', body);
 
-        // Show log panel and disable form
+        // Show panels and disable form
+        awxJobPanel.style.display = 'block';
         logPanel.style.display = 'block';
         logBox.innerHTML = '';
         setStatus('RUNNING');
+        setAwxStatus('PENDING');
         resultBanner.style.display = 'none';
         resetBtn.style.display = 'none';
         setFormDisabled(true);
         submitBtn.innerHTML = '⏳ Deploying...';
+        deployStartTime = new Date();
 
         // POST to /deploy
         fetch('/deploy', {
@@ -330,6 +399,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.error) {
                 appendLogLine('ERROR: ' + data.error);
                 setStatus('FAILED');
+                setAwxStatus('FAILED');
                 showResultBanner('failure', '');
                 setFormDisabled(false);
                 submitBtn.innerHTML = '🚀 Deploy Application';
@@ -339,6 +409,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
             currentJobId = data.job_id;
             jobIdDisplay.textContent = currentJobId;
+
+            // Populate AWX job panel if data available
+            if (data.awx_job_id) {
+                document.getElementById('awx-job-id').textContent = '#' + data.awx_job_id;
+                document.getElementById('awx-template-name').textContent = data.awx_template_name || '—';
+                document.getElementById('awx-launched-by').textContent = data.awx_launched_by || '—';
+                document.getElementById('awx-started-at').textContent = timeAgo(data.awx_started_at);
+                document.getElementById('awx-console-link').href = data.awx_url || '#';
+
+                // Schedule AWX status progression
+                awxStatusTimeouts.push(setTimeout(function() { setAwxStatus('WAITING'); }, 5000));
+                awxStatusTimeouts.push(setTimeout(function() { setAwxStatus('RUNNING'); }, 10000));
+            } else {
+                // Non-demo mode - show basic info
+                document.getElementById('awx-job-id').textContent = '#' + currentJobId;
+                document.getElementById('awx-template-name').textContent = 'Deploy-App-' + selectedTarget.toUpperCase();
+                document.getElementById('awx-launched-by').textContent = 'portal-user';
+                document.getElementById('awx-started-at').textContent = 'just now';
+                setAwxStatus('RUNNING');
+            }
 
             // Open SSE connection
             eventSource = new EventSource('/deploy/status/' + currentJobId);
@@ -351,15 +441,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         var appDisplayName = appSelect.options[appSelect.selectedIndex].textContent.trim();
                         if (eventData.status === 'done') {
                             setStatus('DONE');
+                            setAwxStatus('DONE');
+                            // Update started_at to show elapsed time
+                            var elapsed = (new Date() - deployStartTime) / 1000;
+                            document.getElementById('awx-started-at').textContent = formatElapsed(elapsed);
                             showResultBanner('success', eventData.url, appDisplayName, version, selectedTarget);
                         } else {
                             setStatus('FAILED');
+                            setAwxStatus('FAILED');
                             showResultBanner('failure', '');
                         }
                         eventSource.close();
                         setFormDisabled(false);
                         submitBtn.innerHTML = '🚀 Deploy Application';
                         resetBtn.style.display = 'inline-block';
+                        // Clear pending timeouts
+                        awxStatusTimeouts.forEach(function(t) { clearTimeout(t); });
+                        awxStatusTimeouts = [];
                     } else if (eventData.error) {
                         appendLogLine('ERROR: ' + eventData.error);
                     }
@@ -372,15 +470,19 @@ document.addEventListener('DOMContentLoaded', function() {
             eventSource.onerror = function() {
                 appendLogLine('⚠️ Connection to log stream lost.');
                 setStatus('FAILED');
+                setAwxStatus('FAILED');
                 eventSource.close();
                 setFormDisabled(false);
                 submitBtn.innerHTML = '🚀 Deploy Application';
                 resetBtn.style.display = 'inline-block';
+                awxStatusTimeouts.forEach(function(t) { clearTimeout(t); });
+                awxStatusTimeouts = [];
             };
         })
         .catch(function(error) {
             appendLogLine('ERROR: ' + error.message);
             setStatus('FAILED');
+            setAwxStatus('FAILED');
             setFormDisabled(false);
             submitBtn.innerHTML = '🚀 Deploy Application';
             resetBtn.style.display = 'inline-block';
@@ -457,10 +559,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Reset page to initial state
     function resetPage() {
-        // Hide log panel
+        // Hide panels
+        awxJobPanel.style.display = 'none';
         logPanel.style.display = 'none';
         resultBanner.style.display = 'none';
         resetBtn.style.display = 'none';
+
+        // Clear AWX panel
+        document.getElementById('awx-job-id').textContent = '#—';
+        document.getElementById('awx-template-name').textContent = '—';
+        document.getElementById('awx-launched-by').textContent = '—';
+        document.getElementById('awx-started-at').textContent = '—';
+        document.getElementById('awx-console-link').href = '#';
 
         // Clear log
         logBox.innerHTML = '';
@@ -486,10 +596,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Clear state
         currentJobId = null;
+        deployStartTime = null;
         if (eventSource) {
             eventSource.close();
             eventSource = null;
         }
+        awxStatusTimeouts.forEach(function(t) { clearTimeout(t); });
+        awxStatusTimeouts = [];
     }
 
     // Attach reset button handler

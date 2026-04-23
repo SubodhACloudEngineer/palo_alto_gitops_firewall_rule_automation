@@ -184,12 +184,30 @@ DEMO_MODE=true
 ```
 
 **Behavior:**
-- `POST /deploy` generates a fake job_id (5-digit random number) instead of calling AWX
+- `POST /deploy` generates a fake job_id (5-digit random number) and returns simulated AWX job info
 - `GET /deploy/status/<job_id>` streams simulated Ansible log output from `demo_simulator.py`
-- Simulated logs include realistic timing (0.3-1.2s between lines, 2-4s for key steps)
+- `GET /deploy/awx-status/<job_id>` returns simulated job status progression (pending → waiting → running → successful)
 - All three targets (VM, OpenShift, AKS) have unique, authentic-looking log sequences
 - Final `DEPLOYED_URL` is generated based on target type
 - No "DEMO" or "SIMULATION" labels appear anywhere — output looks completely real
+
+**Realistic Timing:**
+- VM deployments: ~90-120 seconds total
+- OpenShift deployments: ~100-130 seconds total
+- AKS deployments: ~110-140 seconds total
+- Individual operations have realistic delays (e.g., git clone 6s, pip install 8s, pod rollout 8s)
+
+**AWX Job Panel:**
+The deploy UI shows an AWX Job Details panel with:
+- Job ID and template name
+- Launched by user and timestamp
+- AWX console link (simulated)
+- Status badge with progression: PENDING (0-5s) → WAITING (5-10s) → RUNNING (10s+) → DONE/FAILED
+
+**Simulator Functions (`demo_simulator.py`):**
+- `simulate_deployment(app_id, version, target, vm_host, namespace)` — Generator yielding log lines with realistic timing
+- `simulate_awx_job(app_id, target)` — Returns fake AWX job object with job_id, template name, timestamps, AWX URL
+- `get_simulated_job_status(elapsed_seconds, target)` — Returns status based on elapsed time
 
 **Use cases:**
 - Demos to stakeholders without AWX infrastructure
@@ -441,3 +459,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Deploy template JS fix | Fixed non-responsive target cards: changed `{% block scripts %}` to `{% block extra_js %}` to match base.html; added `.service-card.selected` CSS |
 | App selector & GitHub tags | Added `apps.json` config, app dropdown selector, auto-fetch latest GitHub release tag, `get_latest_github_tag()` in awx_client.py, `/deploy/app-info/<app_id>` route |
 | Demo mode | Added `DEMO_MODE` flag and `demo_simulator.py` — simulates realistic AWX deployments without external calls for demos/testing |
+| Demo mode v2 | Slower realistic timing (VM ~90-120s, OpenShift ~100-130s, AKS ~110-140s); AWX Job Details panel with status progression (pending→waiting→running→done); new `simulate_awx_job()`, `get_simulated_job_status()` functions; new `/deploy/awx-status/<job_id>` endpoint |
