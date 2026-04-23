@@ -1533,10 +1533,12 @@ def deploy_app():
 
     # Trigger AWX job or simulate in demo mode
     if DEMO_MODE:
-        job_id = demo_simulator.generate_job_id()
+        awx_job = demo_simulator.simulate_awx_job(app_id, target)
+        job_id = awx_job['job_id']
     else:
         try:
             job_id = awx_client.trigger_job(template_name, extra_vars)
+            awx_job = None
         except ValueError as e:
             return jsonify({'error': str(e)}), 404
         except RuntimeError as e:
@@ -1552,10 +1554,20 @@ def deploy_app():
         'namespace': namespace,
         'status': 'running',
         'url': None,
-        'started_at': datetime.utcnow().isoformat()
+        'started_at': datetime.utcnow().isoformat(),
+        'awx_job': awx_job
     }
 
-    return jsonify({'job_id': job_id})
+    # Return response with AWX job info if in demo mode
+    response = {'job_id': job_id}
+    if DEMO_MODE and awx_job:
+        response['awx_job_id'] = awx_job['job_id']
+        response['awx_template_name'] = awx_job['job_template_name']
+        response['awx_launched_by'] = awx_job['launched_by']
+        response['awx_started_at'] = awx_job['created']
+        response['awx_url'] = awx_job['awx_url']
+
+    return jsonify(response)
 
 
 @app.route('/deploy/status/<job_id>')
@@ -1601,6 +1613,35 @@ def deploy_status(job_id):
             'X-Accel-Buffering': 'no'
         }
     )
+
+
+@app.route('/deploy/awx-status/<job_id>')
+def deploy_awx_status(job_id):
+    """Return current AWX job status (for polling)"""
+    if job_id not in deploy_jobs:
+        return jsonify({'error': 'Job not found'}), 404
+
+    job = deploy_jobs[job_id]
+    started_at_str = job.get('started_at', '')
+
+    # Calculate elapsed time
+    try:
+        started_at = datetime.fromisoformat(started_at_str.replace('Z', '+00:00'))
+        elapsed = (datetime.utcnow() - started_at.replace(tzinfo=None)).total_seconds()
+    except Exception:
+        elapsed = 0
+
+    # Get status based on elapsed time in demo mode
+    if DEMO_MODE:
+        status = demo_simulator.get_simulated_job_status(elapsed, job.get('target', ''))
+    else:
+        status = job.get('status', 'unknown')
+
+    return jsonify({
+        'job_id': job_id,
+        'status': status,
+        'elapsed': elapsed
+    })
 
 
 # ============================================
