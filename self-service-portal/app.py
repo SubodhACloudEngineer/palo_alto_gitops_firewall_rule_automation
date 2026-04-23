@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, R
 import subprocess
 import json
 import threading
+import random
 from datetime import datetime
 import os
 import glob
@@ -16,6 +17,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 # AWX client for job template automation
 import awx_client
+import demo_simulator
 
 # Disable SSL warnings
 requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
@@ -60,6 +62,9 @@ NETBOX_TOKEN = os.environ.get("NETBOX_TOKEN")
 GIT_REPO_PATH = BASE_DIR
 GIT_USER_NAME = os.environ.get("GIT_USER_NAME", "Self-Service Portal")
 GIT_USER_EMAIL = os.environ.get("GIT_USER_EMAIL", "portal@example.com")
+
+# Demo mode - simulates deployments without calling external systems
+DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 
 # In-memory storage for requests
 service_requests = []
@@ -1487,6 +1492,10 @@ def deploy_app():
     repo_url = app.get('repo_url', '')
     image_registry = app.get('image_registry', '')
 
+    # Initialize target-specific fields
+    vm_host = ''
+    namespace = 'default'
+
     # Target-specific validation and extra_vars
     if target == 'vm':
         vm_host = data.get('vm_host', '').strip() if data.get('vm_host') else ''
@@ -1522,19 +1531,25 @@ def deploy_app():
         }
         template_name = 'Deploy-App-AKS'
 
-    # Trigger AWX job
-    try:
-        job_id = awx_client.trigger_job(template_name, extra_vars)
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 404
-    except RuntimeError as e:
-        return jsonify({'error': str(e)}), 502
+    # Trigger AWX job or simulate in demo mode
+    if DEMO_MODE:
+        job_id = demo_simulator.generate_job_id()
+    else:
+        try:
+            job_id = awx_client.trigger_job(template_name, extra_vars)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 404
+        except RuntimeError as e:
+            return jsonify({'error': str(e)}), 502
 
     # Store job metadata
     deploy_jobs[job_id] = {
+        'app_id': app_id,
         'app_name': app_name,
         'version': version,
         'target': target,
+        'vm_host': vm_host,
+        'namespace': namespace,
         'status': 'running',
         'url': None,
         'started_at': datetime.utcnow().isoformat()
@@ -1552,8 +1567,22 @@ def deploy_status(job_id):
             yield f"data: {json.dumps({'error': 'Job not found'})}\n\n"
             return
 
-        # Stream logs from AWX
-        for item in awx_client.stream_job_log(job_id):
+        job = deploy_jobs[job_id]
+
+        # Choose log source based on mode
+        if DEMO_MODE:
+            log_stream = demo_simulator.simulate_deployment(
+                app_id=job.get('app_id', ''),
+                version=job.get('version', ''),
+                target=job.get('target', ''),
+                vm_host=job.get('vm_host', ''),
+                namespace=job.get('namespace', '')
+            )
+        else:
+            log_stream = awx_client.stream_job_log(job_id)
+
+        # Stream logs
+        for item in log_stream:
             if isinstance(item, dict):
                 # Final status dict - update job record
                 deploy_jobs[job_id]['status'] = item.get('status', 'unknown')
