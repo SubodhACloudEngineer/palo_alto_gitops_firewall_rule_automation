@@ -559,7 +559,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (url) {
                 resultLink.style.display = 'inline';
                 resultLink.href = url;
-                resultLink.textContent = '🔗 Open Application → ' + url;
+                resultLink.target = '_blank';
+                if (url.startsWith('/')) {
+                    resultLink.textContent = '🔗 Open Application →';
+                } else {
+                    resultLink.textContent = '🔗 Open Application → ' + url;
+                }
             } else {
                 resultLink.style.display = 'none';
             }

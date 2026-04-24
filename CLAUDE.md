@@ -182,6 +182,7 @@ When `DEMO_MODE=true` in `.env`, the deployment portal simulates realistic deplo
 ```
 DEMO_MODE=true
 AWX_BASE_URL=http://172.20.47.61:30080
+APP_PROXY_TARGET=http://127.0.0.1:5001
 ```
 
 **Behavior:**
@@ -233,6 +234,14 @@ The deploy UI shows an AWX Job Details panel with:
 - Demos to stakeholders without AWX infrastructure
 - Development and testing of the portal UI
 - Training new team members on the deployment workflow
+
+**App Proxy (Reverse Proxy for Demo App):**
+The portal includes a reverse proxy route (`/app-proxy/`) that proxies requests to the demo app running on `APP_PROXY_TARGET` (default: `http://127.0.0.1:5001`):
+- `GET/POST /app-proxy/` and `/app-proxy/<path>` — Proxies all requests to the target app
+- Rewrites absolute URLs in HTML responses to keep links on the portal domain
+- VM deployments use `/app-proxy/` as the `DEPLOYED_URL` so "Open Application" stays on the portal
+- Portal runs on port 5000, demo app runs on port 5001
+- Browser URL shows `http://<portal-ip>:5000/app-proxy/` while content comes from localhost:5001
 
 ### AWX Deployment Playbooks
 Three Ansible playbooks in `playbooks/` are executed by AWX job templates:
@@ -482,3 +491,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Demo mode v2 | Slower realistic timing (VM ~90-120s, OpenShift ~100-130s, AKS ~110-140s); AWX Job Details panel with status progression (pending→waiting→running→done); new `simulate_awx_job()`, `get_simulated_job_status()` functions; new `/deploy/awx-status/<job_id>` endpoint |
 | Demo mode v3 | (1) AWX URL configurable via `AWX_BASE_URL` env var (default: `http://172.20.47.61:30080`); (2) Extended timing to ~3 minutes (VM ~170-200s, OpenShift ~175-210s, AKS ~180-220s) with `random.uniform()` for all sleeps; (3) AKS deployments now simulate ArgoCD sync with ArgoCD Console link in AWX panel and result banner |
 | Fake AWX page | Added `GET /awx/jobs/<job_id>/output` route and `templates/awx_job_output.html` — standalone page mimicking AWX Tower job output interface with dark theme, terminal output via SSE, ANSI colour simulation, elapsed timer, and job details sidebar |
+| App proxy | Added `/app-proxy/` reverse proxy route to proxy requests to demo app on `APP_PROXY_TARGET` (default `http://127.0.0.1:5001`); VM deployments now use `/app-proxy/` as DEPLOYED_URL so "Open Application" stays on portal domain |
