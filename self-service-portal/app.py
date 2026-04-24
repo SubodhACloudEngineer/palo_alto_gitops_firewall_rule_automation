@@ -12,7 +12,7 @@ import random
 from datetime import datetime
 import os
 import glob
-import requests
+import requests as req_lib
 from urllib3.exceptions import InsecureRequestWarning
 
 # AWX client for job template automation
@@ -20,7 +20,7 @@ import awx_client
 import demo_simulator
 
 # Disable SSL warnings
-requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+req_lib.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 app = Flask(__name__)
 
@@ -69,6 +69,9 @@ DEMO_MODE = os.environ.get("DEMO_MODE", "false").lower() == "true"
 # AWX base URL for job links
 AWX_BASE_URL = os.environ.get("AWX_BASE_URL", "http://172.20.47.61:30080")
 
+# App proxy target for demo app
+APP_PROXY_TARGET = os.environ.get("APP_PROXY_TARGET", "http://127.0.0.1:5001")
+
 # In-memory storage for requests
 service_requests = []
 request_counter = 1000
@@ -106,10 +109,10 @@ class NetBoxClient:
 
         url = f"{self.url}{endpoint}"
         try:
-            response = requests.get(url, headers=self.headers, params=params, verify=False, timeout=10)
+            response = req_lib.get(url, headers=self.headers, params=params, verify=False, timeout=10)
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.HTTPError as e:
+        except req_lib.exceptions.HTTPError as e:
             if e.response.status_code == 403:
                 self.last_error = "Authentication failed. Check your NETBOX_TOKEN in .env file."
             elif e.response.status_code == 404:
@@ -118,7 +121,7 @@ class NetBoxClient:
                 self.last_error = f"HTTP {e.response.status_code}: {str(e)}"
             print(f"NetBox API error: {self.last_error}")
             return {'results': [], 'count': 0, 'error': self.last_error}
-        except requests.exceptions.ConnectionError:
+        except req_lib.exceptions.ConnectionError:
             self.last_error = f"Cannot connect to NetBox at {self.url}. Is NetBox running?"
             print(f"NetBox API error: {self.last_error}")
             return {'results': [], 'count': 0, 'error': self.last_error}
@@ -1677,6 +1680,71 @@ def awx_job_output(job_id):
         started_at=job.get('started_at', ''),
         status=job.get('status', 'running')
     )
+
+
+# ============================================
+# APP PROXY (Reverse Proxy for Demo App)
+# ============================================
+
+def _proxy(subpath=""):
+    """Proxy requests to the demo app running on APP_PROXY_TARGET"""
+    target_url = f"{APP_PROXY_TARGET}/{subpath}"
+
+    # Forward query string
+    if request.query_string:
+        target_url += "?" + request.query_string.decode()
+
+    # Forward the request to the target app
+    resp = req_lib.request(
+        method=request.method,
+        url=target_url,
+        headers={
+            key: val for key, val in request.headers
+            if key.lower() not in
+            ("host", "content-length", "transfer-encoding")
+        },
+        data=request.get_data(),
+        cookies=request.cookies,
+        allow_redirects=False,
+        timeout=10
+    )
+
+    # Rewrite any absolute URLs in HTML responses
+    # so internal links stay on the portal domain
+    content_type = resp.headers.get("Content-Type", "")
+    content = resp.content
+    if "text/html" in content_type:
+        content = content.replace(
+            b"http://127.0.0.1:5001",
+            b""
+        ).replace(
+            b"http://localhost:5001",
+            b""
+        )
+
+    # Strip hop-by-hop headers
+    excluded = {
+        "content-encoding", "content-length",
+        "transfer-encoding", "connection"
+    }
+    headers = {
+        k: v for k, v in resp.headers.items()
+        if k.lower() not in excluded
+    }
+
+    return Response(
+        content,
+        status=resp.status_code,
+        headers=headers,
+        content_type=content_type
+    )
+
+
+@app.route("/app-proxy/", defaults={"subpath": ""})
+@app.route("/app-proxy/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def app_proxy(subpath):
+    """Reverse proxy to demo app"""
+    return _proxy(subpath)
 
 
 # ============================================

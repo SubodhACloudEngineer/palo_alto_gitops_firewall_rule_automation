@@ -92,7 +92,7 @@ def generate_job_id() -> str:
 
 def _simulate_vm_deployment(app_id: str, version: str, vm_host: str):
     """Simulate VM deployment via SSH + git clone + systemd"""
-    deployed_url = f"http://{vm_host}:5000"
+    deployed_url = "/app-proxy/"
 
     # PLAY header
     yield f"PLAY [Deploy {app_id} to {vm_host}] ****************************"
