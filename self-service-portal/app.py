@@ -1564,6 +1564,29 @@ def deploy_app():
         'awx_job': awx_job
     }
 
+    if target == 'aks' and DEMO_MODE:
+        import subprocess
+        import threading
+
+        def run_kubectl_commands():
+            commands = [
+                ["kubectl", "get", "pods", "-n", "argocd"],
+                ["kubectl", "apply", "-f", "argocd-app.yaml"],
+                ["kubectl", "get", "applications", "-n", "argocd"],
+            ]
+            for cmd in commands:
+                try:
+                    subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                except Exception as e:
+                    app.logger.warning(f"kubectl command failed: {e}")
+
+        # Run in background thread so it doesn't block the response
+        threading.Thread(target=run_kubectl_commands, daemon=True).start()
+
     # Store ArgoCD info for AKS deployments
     if target == 'aks':
         deploy_jobs[job_id]['argocd_url'] = f"https://localhost:8080/applications/{app_id}"
