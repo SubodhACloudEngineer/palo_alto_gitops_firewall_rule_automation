@@ -169,6 +169,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var awxStatusTimeouts = [];
     var usesArgocd = false;
     var argocdUrl = null;
+    var influxdbUrl = null;
+    var grafanaUrl = null;
 
     // DOM Elements
     var form = document.getElementById('deploy-form');
@@ -441,6 +443,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Handle ArgoCD for AKS deployments
             usesArgocd = data.uses_argocd || false;
             argocdUrl = data.argocd_url || null;
+            influxdbUrl = data.influxdb_url || null;
+            grafanaUrl = data.grafana_url || null;
             if (usesArgocd && argocdUrl) {
                 document.getElementById('job-panel-title').textContent = 'Deployment Details';
                 document.getElementById('awx-template-name').textContent = 'ArgoCD Sync  ·  aks_one';
@@ -471,6 +475,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             document.getElementById('argocd-row').style.display = 'contents';
                             document.getElementById('argocd-console-link').href = argocdUrl;
                         }
+                        if (eventData.influxdb_url) {
+                            influxdbUrl = eventData.influxdb_url;
+                        }
+                        if (eventData.grafana_url) {
+                            grafanaUrl = eventData.grafana_url;
+                        }
 
                         if (eventData.status === 'done') {
                             setStatus('DONE');
@@ -478,7 +488,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Update started_at to show elapsed time
                             var elapsed = (new Date() - deployStartTime) / 1000;
                             document.getElementById('awx-started-at').textContent = formatElapsed(elapsed);
-                            showResultBanner('success', eventData.url, appDisplayName, version, selectedTarget, argocdUrl);
+                            showResultBanner('success', eventData.url, appDisplayName, version, selectedTarget, argocdUrl, influxdbUrl, grafanaUrl);
                         } else {
                             setStatus('FAILED');
                             setAwxStatus('FAILED');
@@ -602,7 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Helper: Show result banner
-    function showResultBanner(type, url, appName, version, target, argocdLink) {
+    function showResultBanner(type, url, appName, version, target, argocdLink, influxLink, grafanaLink) {
         resultBanner.style.display = 'block';
         var resultTitle = document.getElementById('result-title');
         var resultDetails = document.getElementById('result-details');
@@ -612,6 +622,14 @@ document.addEventListener('DOMContentLoaded', function() {
         var existingArgoLink = document.getElementById('result-argocd-link');
         if (existingArgoLink) {
             existingArgoLink.remove();
+        }
+        var existingInfluxLink = document.getElementById('result-influx-link');
+        if (existingInfluxLink) {
+            existingInfluxLink.remove();
+        }
+        var existingGrafanaLink = document.getElementById('result-grafana-link');
+        if (existingGrafanaLink) {
+            existingGrafanaLink.remove();
         }
 
         if (type === 'success') {
@@ -645,6 +663,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 argoLink.style.fontWeight = '500';
                 argoLink.textContent = '🔗 View ArgoCD Sync → ' + argocdLink;
                 resultLink.parentNode.insertBefore(argoLink, resultLink.nextSibling);
+            }
+
+            if (target === 'vm' && influxLink) {
+                var influxAnchor = document.createElement('a');
+                influxAnchor.id = 'result-influx-link';
+                influxAnchor.href = influxLink;
+                influxAnchor.target = '_blank';
+                influxAnchor.style.display = 'block';
+                influxAnchor.style.marginTop = '8px';
+                influxAnchor.style.color = '#0067B1';
+                influxAnchor.style.fontWeight = '500';
+                influxAnchor.textContent = '🔗 Open InfluxDB Metrics → ' + influxLink;
+                resultLink.parentNode.insertBefore(influxAnchor, resultLink.nextSibling);
+            }
+
+            if (target === 'vm' && grafanaLink) {
+                var grafanaAnchor = document.createElement('a');
+                grafanaAnchor.id = 'result-grafana-link';
+                grafanaAnchor.href = grafanaLink;
+                grafanaAnchor.target = '_blank';
+                grafanaAnchor.style.display = 'block';
+                grafanaAnchor.style.marginTop = '8px';
+                grafanaAnchor.style.color = '#0067B1';
+                grafanaAnchor.style.fontWeight = '500';
+                grafanaAnchor.textContent = '🔗 Open Grafana Dashboard → ' + grafanaLink;
+                resultLink.parentNode.insertBefore(grafanaAnchor, resultLink.nextSibling);
             }
         } else {
             resultBanner.style.backgroundColor = '#FFEBEE';
@@ -695,6 +739,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (existingArgoLink) {
             existingArgoLink.remove();
         }
+        var existingInfluxLink = document.getElementById('result-influx-link');
+        if (existingInfluxLink) {
+            existingInfluxLink.remove();
+        }
+        var existingGrafanaLink = document.getElementById('result-grafana-link');
+        if (existingGrafanaLink) {
+            existingGrafanaLink.remove();
+        }
 
         // Clear log
         logBox.innerHTML = '';
@@ -723,6 +775,8 @@ document.addEventListener('DOMContentLoaded', function() {
         deployStartTime = null;
         usesArgocd = false;
         argocdUrl = null;
+        influxdbUrl = null;
+        grafanaUrl = null;
         if (eventSource) {
             eventSource.close();
             eventSource = null;

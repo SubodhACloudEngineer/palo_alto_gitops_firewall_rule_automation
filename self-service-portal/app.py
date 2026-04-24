@@ -9,6 +9,8 @@ import subprocess
 import json
 import threading
 import random
+import time
+import math
 from datetime import datetime
 import os
 import glob
@@ -78,6 +80,61 @@ request_counter = 1000
 
 # In-memory storage for deploy jobs
 deploy_jobs = {}
+
+
+def _build_vm_monitoring_links(app_id):
+    """Build InfluxDB and Grafana URLs for VM monitoring."""
+    influx_base_url = os.environ.get("INFLUX_BASE_URL", "http://localhost:8086").rstrip('/')
+    influx_org_id = os.environ.get("INFLUX_ORG_ID", "17953261761d6a38")
+    influx_bucket = os.environ.get("INFLUX_BUCKET", "vm_resource_metrics")
+
+    grafana_base_url = os.environ.get("GRAFANA_BASE_URL", "http://localhost:3000").rstrip('/')
+    grafana_dashboard_uid = os.environ.get("GRAFANA_VM_DASHBOARD_UID", "").strip()
+
+    if grafana_dashboard_uid:
+        grafana_url = f"{grafana_base_url}/d/{grafana_dashboard_uid}?var-app_id={app_id}"
+    else:
+        grafana_url = f"{grafana_base_url}/dashboards"
+
+    return {
+        "influxdb_url": f"{influx_base_url}/orgs/{influx_org_id}",
+        "grafana_url": grafana_url,
+        "influx_bucket": influx_bucket,
+        "influx_org_id": influx_org_id
+    }
+
+
+def _stream_vm_metrics_to_influx(app_id, vm_host, influx_bucket, influx_org_id):
+    """
+    Stream synthetic VM KPIs to InfluxDB for demo graphs.
+    Best-effort only: errors are logged and ignored.
+    """
+    influx_base_url = os.environ.get("INFLUX_BASE_URL", "http://localhost:8086").rstrip('/')
+    influx_token = os.environ.get("INFLUX_TOKEN", "").strip()
+    write_url = f"{influx_base_url}/api/v2/write?org={influx_org_id}&bucket={influx_bucket}&precision=s"
+
+    headers = {"Content-Type": "text/plain; charset=utf-8"}
+    if influx_token:
+        headers["Authorization"] = f"Token {influx_token}"
+
+    for step in range(45):  # ~90 seconds at 2s intervals
+        phase = (step / 45.0) * (2 * math.pi)
+        cpu = max(1.0, min(95.0, 42 + 25 * math.sin(phase) + random.uniform(-6, 6)))
+        memory = max(5.0, min(98.0, 55 + 18 * math.sin(phase * 0.7 + 1.2) + random.uniform(-4, 4)))
+        disk_iops = max(20.0, 160 + 70 * math.sin(phase * 1.4 + 0.5) + random.uniform(-20, 20))
+        net_kbps = max(50.0, 350 + 180 * math.sin(phase * 1.8 + 0.8) + random.uniform(-45, 45))
+
+        payload = (
+            f"vm_resource,app_id={app_id},vm_host={vm_host} "
+            f"cpu={cpu:.2f},memory={memory:.2f},disk_iops={disk_iops:.2f},net_kbps={net_kbps:.2f}"
+        )
+
+        try:
+            req_lib.post(write_url, headers=headers, data=payload, timeout=3)
+        except Exception as e:
+            app.logger.warning(f"Failed to push VM metrics to InfluxDB: {e}")
+
+        time.sleep(2)
 
 
 # ============================================
@@ -1551,6 +1608,7 @@ def deploy_app():
             return jsonify({'error': str(e)}), 502
 
     # Store job metadata
+    vm_monitoring = _build_vm_monitoring_links(app_id) if target == 'vm' else {}
     deploy_jobs[job_id] = {
         'app_id': app_id,
         'app_name': app_name,
@@ -1561,7 +1619,9 @@ def deploy_app():
         'status': 'running',
         'url': None,
         'started_at': datetime.utcnow().isoformat(),
-        'awx_job': awx_job
+        'awx_job': awx_job,
+        'influxdb_url': vm_monitoring.get('influxdb_url'),
+        'grafana_url': vm_monitoring.get('grafana_url')
     }
 
     if target == 'aks' and DEMO_MODE:
@@ -1605,6 +1665,10 @@ def deploy_app():
         response['argocd_url'] = f"https://localhost:8080/applications/{app_id}" if target == 'aks' else None
         response['uses_argocd'] = target == 'aks'
 
+    if target == 'vm':
+        response['influxdb_url'] = vm_monitoring.get('influxdb_url')
+        response['grafana_url'] = vm_monitoring.get('grafana_url')
+
     return jsonify(response)
 
 
@@ -1639,6 +1703,9 @@ def deploy_status(job_id):
                 deploy_jobs[job_id]['url'] = item.get('url')
                 if item.get('argocd_url'):
                     deploy_jobs[job_id]['argocd_url'] = item.get('argocd_url')
+                if job.get('target') == 'vm':
+                    item['influxdb_url'] = job.get('influxdb_url')
+                    item['grafana_url'] = job.get('grafana_url')
                 yield f"data: {json.dumps(item)}\n\n"
                 return
             else:

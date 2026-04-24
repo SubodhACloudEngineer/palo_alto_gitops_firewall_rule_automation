@@ -93,6 +93,8 @@ def generate_job_id() -> str:
 def _simulate_vm_deployment(app_id: str, version: str, vm_host: str):
     """Simulate VM deployment via SSH + git clone + systemd"""
     deployed_url = "/app-proxy/"
+    influxdb_url = "http://localhost:8086/orgs/17953261761d6a38"
+    grafana_url = "http://localhost:3000/dashboards"
 
     # PLAY header
     yield f"PLAY [Deploy {app_id} to {vm_host}] ****************************"
@@ -223,8 +225,18 @@ def _simulate_vm_deployment(app_id: str, version: str, vm_host: str):
     time.sleep(random.uniform(0.4, 0.7))
     yield f"DEPLOYED_URL: {deployed_url}"
     time.sleep(random.uniform(0.8, 1.2))
+    yield f"INFLUXDB_URL: {influxdb_url}"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield f"GRAFANA_URL: {grafana_url}"
+    time.sleep(random.uniform(0.8, 1.2))
 
-    yield {'status': 'done', 'url': deployed_url, 'uses_argocd': False}
+    yield {
+        'status': 'done',
+        'url': deployed_url,
+        'uses_argocd': False,
+        'influxdb_url': influxdb_url,
+        'grafana_url': grafana_url
+    }
 
 
 def _simulate_openshift_deployment(app_id: str, version: str, namespace: str):
