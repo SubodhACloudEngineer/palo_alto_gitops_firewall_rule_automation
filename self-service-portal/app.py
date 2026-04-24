@@ -1647,18 +1647,6 @@ def deploy_app():
         # Run in background thread so it doesn't block the response
         threading.Thread(target=run_kubectl_commands, daemon=True).start()
 
-    if target == 'vm' and DEMO_MODE:
-        threading.Thread(
-            target=_stream_vm_metrics_to_influx,
-            args=(
-                app_id,
-                vm_host or "onprem-vm",
-                vm_monitoring.get('influx_bucket', 'vm_resource_metrics'),
-                vm_monitoring.get('influx_org_id', '17953261761d6a38')
-            ),
-            daemon=True
-        ).start()
-
     # Store ArgoCD info for AKS deployments
     if target == 'aks':
         deploy_jobs[job_id]['argocd_url'] = f"https://localhost:8080/applications/{app_id}"
