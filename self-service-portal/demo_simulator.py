@@ -93,6 +93,8 @@ def generate_job_id() -> str:
 def _simulate_vm_deployment(app_id: str, version: str, vm_host: str):
     """Simulate VM deployment via SSH + git clone + systemd"""
     deployed_url = "/app-proxy/"
+    influxdb_url = "http://localhost:8086/orgs/17953261761d6a38"
+    grafana_url = "http://localhost:3000/dashboards"
 
     # PLAY header
     yield f"PLAY [Deploy {app_id} to {vm_host}] ****************************"
@@ -223,8 +225,18 @@ def _simulate_vm_deployment(app_id: str, version: str, vm_host: str):
     time.sleep(random.uniform(0.4, 0.7))
     yield f"DEPLOYED_URL: {deployed_url}"
     time.sleep(random.uniform(0.8, 1.2))
+    yield f"INFLUXDB_URL: {influxdb_url}"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield f"GRAFANA_URL: {grafana_url}"
+    time.sleep(random.uniform(0.8, 1.2))
 
-    yield {'status': 'done', 'url': deployed_url, 'uses_argocd': False}
+    yield {
+        'status': 'done',
+        'url': deployed_url,
+        'uses_argocd': False,
+        'influxdb_url': influxdb_url,
+        'grafana_url': grafana_url
+    }
 
 
 def _simulate_openshift_deployment(app_id: str, version: str, namespace: str):
@@ -376,196 +388,88 @@ def _simulate_openshift_deployment(app_id: str, version: str, namespace: str):
 
 
 def _simulate_aks_deployment(app_id: str, version: str, namespace: str):
-    """Simulate AKS deployment via az CLI + Helm + ArgoCD"""
+    """Simulate AKS deployment via kubectl + ArgoCD sync output"""
     deployed_url = f"https://{app_id}.aks.azure.example.com"
     argocd_url = f"https://localhost:8080/applications/{app_id}"
-    image_tag_short = version[:8] if len(version) > 8 else version
-
-    # PLAY header
-    yield f"PLAY [Deploy {app_id} to AKS namespace {namespace}] ************"
-    time.sleep(random.uniform(0.4, 0.7))
+    yield "$ kubectl get pods -n argocd"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield "NAME                                             READY   STATUS    RESTARTS   AGE"
+    yield "argocd-application-controller-0                  1/1     Running   0          2d"
+    yield "argocd-applicationset-controller-b8f7c9d-xk2pq   1/1     Running   0          2d"
+    yield "argocd-dex-server-6d8f9b7c4-m7rnx                1/1     Running   0          2d"
+    yield "argocd-image-updater-7f6d8c9b5-p4qrs             1/1     Running   0          2d"
+    yield "argocd-redis-7d9f8b6c5-j3kl2                     1/1     Running   0          2d"
+    yield "argocd-repo-server-5c8d7f9b4-n6opq               1/1     Running   0          2d"
+    yield "argocd-server-6b9f8c7d5-r8stu                    1/1     Running   0          2d"
+    time.sleep(random.uniform(1.0, 1.5))
     yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Gathering Facts
-    yield "TASK [Gathering Facts] *****************************************"
-    time.sleep(random.uniform(6.0, 8.0))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
+    yield "$ kubectl apply -f argocd-app.yaml"
+    time.sleep(random.uniform(3.0, 4.0))
+    yield f"application.argoproj.io/{app_id} configured"
+    time.sleep(random.uniform(1.0, 1.5))
     yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Azure CLI login (slow)
-    yield "TASK [Azure CLI login — service principal] *********************"
+    yield "$ kubectl get applications -n argocd"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield "NAME             SYNC STATUS   HEALTH STATUS   REVISION"
+    yield f"{app_id}         OutOfSync     Healthy         main"
+    time.sleep(random.uniform(1.0, 1.5))
+    yield ""
+    yield "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    yield "ArgoCD Sync Started"
+    yield "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield ""
+    yield f"Application:     {app_id}"
+    yield f"Destination:     aks_one  /  {namespace}"
+    yield "Sync Policy:     Automated (image-updater)"
+    yield f"Revision:        {version}"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield ""
+    yield "Syncing resources..."
+    time.sleep(random.uniform(4.0, 5.0))
+    yield f"  · ServiceAccount/{app_id}                    Synced"
+    time.sleep(random.uniform(1.0, 1.5))
+    yield f"  · ConfigMap/{app_id}-config                  Synced"
+    time.sleep(random.uniform(1.0, 1.5))
+    yield f"  · Secret/{app_id}-secret                     Synced"
+    time.sleep(random.uniform(1.0, 1.5))
+    yield f"  · Deployment/apps/{app_id}                   Synced"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield f"  · Service/{app_id}                           Synced"
+    time.sleep(random.uniform(1.0, 1.5))
+    yield f"  · Ingress/{app_id}-ingress                   Synced"
+    time.sleep(random.uniform(1.5, 2.0))
+    yield ""
+    yield "Waiting for rollout..."
     time.sleep(random.uniform(8.0, 12.0))
-    yield "  Authenticating with Azure..."
-    time.sleep(random.uniform(5.0, 7.0))
-    yield "  [WARNING]: Do not store credentials in source control"
-    time.sleep(random.uniform(1.0, 1.5))
-    yield "  Login successful. Tenant: 75d69b80-844c-4077-b28a-cf2b59cc5187"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # AKS credentials (slow)
-    yield "TASK [Fetch AKS credentials] ***********************************"
-    time.sleep(random.uniform(6.0, 8.0))
-    yield "  az aks get-credentials --name nttdata-aks-poc --resource-group nttdata-rg"
+    yield f"  Pod {app_id}-7d9f4b-xk2pq   Pending  →  ContainerCreating"
+    time.sleep(random.uniform(4.0, 6.0))
+    yield f"  Pod {app_id}-7d9f4b-xk2pq   ContainerCreating  →  Running"
     time.sleep(random.uniform(3.0, 4.0))
-    yield '  Merged "nttdata-aks-poc" as current context in ~/.kube/config'
+    yield "  Readiness probe:  GET /health  →  HTTP 200 OK"
     time.sleep(random.uniform(2.0, 3.0))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Namespace
-    yield "TASK [Ensure namespace exists] *********************************"
-    time.sleep(random.uniform(3.0, 4.0))
-    yield f"  namespace/{namespace} created"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield f"changed: [localhost] => namespace '{namespace}' created"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Key Vault fetch (slow)
-    yield "TASK [Fetch secret from Azure Key Vault] ***********************"
-    time.sleep(random.uniform(6.0, 8.0))
-    yield f"  Reading secret '{app_id}-secret' from Key Vault..."
-    time.sleep(random.uniform(4.0, 5.0))
-    yield "  Secret retrieved successfully"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Create Secret
-    yield "TASK [Create Kubernetes Secret] ********************************"
-    time.sleep(random.uniform(3.0, 4.0))
-    yield f"  secret/{app_id}-secret created"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "changed: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Helm upgrade (slow)
-    yield "TASK [Helm upgrade --install] **********************************"
-    time.sleep(random.uniform(4.0, 5.0))
-    yield f"  Release name:  {app_id}"
-    time.sleep(random.uniform(1.0, 1.5))
-    yield "  Chart:         helm/app-chart"
-    time.sleep(random.uniform(1.0, 1.5))
-    yield f"  Namespace:     {namespace}"
-    time.sleep(random.uniform(1.0, 1.5))
-    yield f"  Image:         ghcr.io/your-org/{app_id}:{version}"
-    time.sleep(random.uniform(1.0, 1.5))
-    yield "  "
-    yield "  Upgrading release..."
-    time.sleep(random.uniform(15.0, 20.0))
-    yield "  Creating deployment..."
+    yield "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    yield "Sync Status:     Synced"
+    yield "Health Status:   Healthy"
+    yield f"Image:           ghcr.io/your-org/{app_id}:{version}"
+    yield "Pods Ready:      1/1"
+    yield "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     time.sleep(random.uniform(2.0, 3.0))
-    yield f"  Release '{app_id}' has been upgraded. Happy Helming!"
-    time.sleep(random.uniform(1.0, 2.0))
-    yield "changed: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Wait for rollout (slow)
-    yield "TASK [Wait for deployment rollout] *****************************"
-    time.sleep(random.uniform(4.0, 5.0))
-    yield "  Waiting for pods to become ready..."
-    time.sleep(random.uniform(15.0, 20.0))
-    yield "  Pod status: ContainerCreating"
+    yield "$ kubectl get applications -n argocd"
     time.sleep(random.uniform(2.0, 3.0))
-    pod_suffix = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=5))
-    yield f"  Pod {app_id}-6cf9d-{pod_suffix} → Running"
-    time.sleep(random.uniform(2.0, 3.0))
-    yield "  readyReplicas: 1"
-    time.sleep(random.uniform(1.0, 2.0))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # ArgoCD sync
-    yield "TASK [Trigger ArgoCD application sync] *************************"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield f"  ArgoCD App:  {app_id}"
-    time.sleep(random.uniform(2.0, 3.0))
-    yield f"  Namespace:   {namespace}"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "  Syncing application..."
-    time.sleep(random.uniform(5.0, 7.0))
-    yield "  Sync Status: Synced"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "  Health:      Healthy"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield f"  Revision:    {image_tag_short}"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "changed: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Verify ArgoCD health
-    yield "TASK [Verify ArgoCD application health] ************************"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "  Checking ArgoCD app health..."
-    time.sleep(random.uniform(3.0, 4.0))
-    yield f"  Application '{app_id}' is Healthy"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Smoke test
-    yield "TASK [Smoke test — GET /health] ********************************"
-    time.sleep(random.uniform(4.0, 5.0))
-    yield f"  GET https://{app_id}.aks.azure.example.com/health"
-    time.sleep(random.uniform(2.0, 3.0))
-    yield "  HTTP 200 OK"
+    yield "NAME             SYNC STATUS   HEALTH STATUS   REVISION"
+    yield f"{app_id}         Synced        Healthy         {version}"
     time.sleep(random.uniform(1.0, 1.5))
-    yield "ok: [localhost]"
-    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Report URL
-    yield "TASK [Report deployed URL] *************************************"
-    time.sleep(random.uniform(1.0, 1.5))
-    yield "ok: [localhost] => {"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield f'  "msg": "ARGOCD_URL: {argocd_url}"'
-    time.sleep(random.uniform(0.8, 1.2))
-    yield f'  "msg": "DEPLOYED_URL: {deployed_url}"'
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "}"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
-
-    # Play recap
-    yield "PLAY RECAP *****************************************************"
-    time.sleep(random.uniform(0.8, 1.2))
-    yield "localhost   : ok=12  changed=6  unreachable=0  failed=0"
-    time.sleep(random.uniform(0.4, 0.7))
-    yield ""
-    time.sleep(random.uniform(0.4, 0.7))
     yield f"ARGOCD_URL: {argocd_url}"
-    time.sleep(random.uniform(0.8, 1.2))
     yield f"DEPLOYED_URL: {deployed_url}"
-    time.sleep(random.uniform(0.8, 1.2))
 
     yield {
         'status': 'done',
         'url': deployed_url,
-        'argocd_url': argocd_url,
+        'argocd_url': 'https://localhost:8080/applications/firewall-audit',
         'uses_argocd': True
     }
