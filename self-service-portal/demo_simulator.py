@@ -19,7 +19,7 @@ def simulate_deployment(app_id: str, version: str, target: str,
     awx_client.stream_job_log() does.
 
     Timing is realistic with appropriate pauses for each operation type.
-    Total simulation times: VM ~90-120s, OpenShift ~100-130s, AKS ~110-140s
+    Total simulation times: VM ~170-200s, OpenShift ~175-210s, AKS ~180-220s
     """
     if target == 'vm':
         yield from _simulate_vm_deployment(app_id, version, vm_host)
@@ -29,10 +29,10 @@ def simulate_deployment(app_id: str, version: str, target: str,
         yield from _simulate_aks_deployment(app_id, version, namespace)
     else:
         yield f"ERROR: Unknown target '{target}'"
-        yield {'status': 'failed', 'url': ''}
+        yield {'status': 'failed', 'url': '', 'uses_argocd': False}
 
 
-def simulate_awx_job(app_id: str, target: str) -> dict:
+def simulate_awx_job(app_id: str, target: str, awx_base_url: str) -> dict:
     """
     Returns a realistic AWX job object.
     Called at POST /deploy time (before SSE stream starts).
@@ -45,7 +45,7 @@ def simulate_awx_job(app_id: str, target: str) -> dict:
     template = target_to_template.get(target, {"id": 12, "name": "Deploy-App-VM"})
     job_id = str(random.randint(10000, 99999))
 
-    return {
+    result = {
         "job_id":           job_id,
         "job_template_id":  template["id"],
         "job_template_name": template["name"],
@@ -56,8 +56,17 @@ def simulate_awx_job(app_id: str, target: str) -> dict:
             "app_name":  app_id,
             "target":    target
         },
-        "awx_url": f"https://awx.internal.nttdata.com/#/jobs/playbook/{job_id}/output"
+        "awx_url": f"{awx_base_url}/#/jobs/playbook/{job_id}/output"
     }
+
+    if target == "aks":
+        result["argocd_url"] = f"https://localhost:8080/applications/{app_id}"
+        result["uses_argocd"] = True
+    else:
+        result["argocd_url"] = None
+        result["uses_argocd"] = False
+
+    return result
 
 
 def get_simulated_job_status(elapsed_seconds: float, target: str) -> str:
@@ -81,151 +90,141 @@ def generate_job_id() -> str:
     return str(random.randint(10000, 99999))
 
 
-def _pause_line():
-    """Standard pause between regular log lines"""
-    time.sleep(random.uniform(0.6, 1.0))
-
-
-def _pause_empty():
-    """Pause between tasks (empty lines)"""
-    time.sleep(0.3)
-
-
 def _simulate_vm_deployment(app_id: str, version: str, vm_host: str):
     """Simulate VM deployment via SSH + git clone + systemd"""
     deployed_url = f"http://{vm_host}:5000"
 
     # PLAY header
     yield f"PLAY [Deploy {app_id} to {vm_host}] ****************************"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Gathering Facts (always slow)
     yield "TASK [Gathering Facts] *****************************************"
-    time.sleep(random.uniform(3.5, 4.5))
+    time.sleep(random.uniform(6.0, 8.0))
     yield f"ok: [{vm_host}]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Package install
     yield "TASK [Ensure git and python3-pip are installed] ****************"
-    _pause_line()
+    time.sleep(random.uniform(4.0, 6.0))
     yield f"ok: [{vm_host}] => (item=git)"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"ok: [{vm_host}] => (item=python3-pip)"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"ok: [{vm_host}] => (item=python3-venv)"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Git clone (slow operation)
     yield "TASK [Clone / update application repository] *******************"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"  Cloning into '/opt/apps/{app_id}'..."
-    time.sleep(random.uniform(5.5, 6.5))
+    time.sleep(random.uniform(10.0, 14.0))
     yield f"  remote: Enumerating objects: 847, done."
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"  remote: Counting objects: 100% (847/847), done."
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"  remote: Compressing objects: 100% (412/412), done."
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"  Receiving objects: 100% (847/847), 2.14 MiB | 8.42 MiB/s, done."
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"  Resolving deltas: 100% (389/389), done."
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"changed: [{vm_host}]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Pip install (slow operation)
     yield "TASK [Install Python dependencies into virtualenv] **************"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield "  Creating virtual environment..."
     time.sleep(random.uniform(2.0, 3.0))
     yield "  Collecting flask>=2.0"
-    time.sleep(random.uniform(0.7, 0.9))
+    time.sleep(random.uniform(3.0, 4.0))
     yield "    Downloading Flask-3.0.0-py3-none-any.whl (99 kB)"
-    time.sleep(random.uniform(0.7, 0.9))
+    time.sleep(random.uniform(0.8, 1.2))
     yield "  Collecting requests>=2.28"
-    time.sleep(random.uniform(0.7, 0.9))
-    yield "    Downloading requests-2.31.0-py3-none-any.whl (62 kB)"
-    time.sleep(random.uniform(0.7, 0.9))
-    yield "  Collecting python-dotenv"
-    time.sleep(random.uniform(0.7, 0.9))
-    yield "  Collecting gunicorn>=21.0"
-    time.sleep(random.uniform(0.7, 0.9))
-    yield "  Installing collected packages: MarkupSafe, Jinja2, itsdangerous, click, blinker, Werkzeug, flask, urllib3, charset-normalizer, certifi, idna, requests, python-dotenv, gunicorn"
     time.sleep(random.uniform(2.0, 3.0))
+    yield "    Downloading requests-2.31.0-py3-none-any.whl (62 kB)"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "  Collecting python-dotenv"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield "  Collecting gunicorn>=21.0"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "  Installing collected packages: MarkupSafe, Jinja2, itsdangerous, click, blinker, Werkzeug, flask, urllib3, charset-normalizer, certifi, idna, requests, python-dotenv, gunicorn"
+    time.sleep(random.uniform(5.0, 7.0))
     yield "  Successfully installed all packages"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"changed: [{vm_host}]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Systemd service
     yield "TASK [Render systemd service unit] ******************************"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"changed: [{vm_host}]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Systemd restart (moderate wait)
     yield "TASK [Enable and restart systemd service] ***********************"
-    _pause_line()
+    time.sleep(random.uniform(5.0, 7.0))
     yield f"  Reloading systemd daemon..."
-    time.sleep(random.uniform(1.0, 1.5))
+    time.sleep(random.uniform(2.0, 3.0))
     yield f"  Enabling {app_id}.service..."
-    time.sleep(random.uniform(0.5, 0.8))
+    time.sleep(random.uniform(1.0, 2.0))
     yield f"  Restarting {app_id}.service..."
-    time.sleep(random.uniform(2.5, 3.5))
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"changed: [{vm_host}]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Health check (wait for app to start)
     yield "TASK [Wait for application health check] ************************"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "  Waiting for port 5000..."
-    time.sleep(random.uniform(2.5, 3.5))
+    time.sleep(random.uniform(2.0, 3.0))
     yield "  Attempt 1/10 — GET http://localhost:5000/health"
-    time.sleep(random.uniform(0.4, 0.6))
+    time.sleep(random.uniform(5.0, 7.0))
     yield "  HTTP 200 OK"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"ok: [{vm_host}]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Report URL
     yield "TASK [Report deployed URL] **************************************"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"ok: [{vm_host}] => " + "{"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield f'  "msg": "DEPLOYED_URL: {deployed_url}"'
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "}"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Play recap
     yield "PLAY RECAP *****************************************************"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"{vm_host}   : ok=8  changed=4  unreachable=0  failed=0"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield f"DEPLOYED_URL: {deployed_url}"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
 
-    yield {'status': 'done', 'url': deployed_url}
+    yield {'status': 'done', 'url': deployed_url, 'uses_argocd': False}
 
 
 def _simulate_openshift_deployment(app_id: str, version: str, namespace: str):
@@ -234,296 +233,339 @@ def _simulate_openshift_deployment(app_id: str, version: str, namespace: str):
 
     # PLAY header
     yield f"PLAY [Deploy {app_id} to OpenShift namespace {namespace}] ******"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Gathering Facts
     yield "TASK [Gathering Facts] *****************************************"
-    time.sleep(random.uniform(3.5, 4.5))
+    time.sleep(random.uniform(6.0, 8.0))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # OCP Authentication (slow)
     yield "TASK [Authenticate to OpenShift cluster] ***********************"
-    _pause_line()
+    time.sleep(random.uniform(8.0, 10.0))
     yield "  Connecting to OCP API server..."
-    time.sleep(random.uniform(3.5, 4.5))
+    time.sleep(random.uniform(4.0, 6.0))
     yield "  Validating cluster certificate..."
-    time.sleep(random.uniform(0.5, 0.8))
+    time.sleep(random.uniform(0.8, 1.2))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Namespace check
     yield "TASK [Ensure namespace exists] *********************************"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"ok: [localhost] => namespace '{namespace}' already exists"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Key Vault fetch (slow)
     yield "TASK [Fetch secret from Azure Key Vault] ***********************"
-    _pause_line()
+    time.sleep(random.uniform(6.0, 8.0))
     yield f"  Reading secret '{app_id}-secret' from Key Vault..."
-    time.sleep(random.uniform(2.5, 3.5))
+    time.sleep(random.uniform(4.0, 5.0))
     yield "  Secret retrieved successfully"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Apply Secret
     yield "TASK [Apply Kubernetes Secret] *********************************"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"  secret/{app_id}-secret configured"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "changed: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Apply Deployment (slow)
     yield "TASK [Apply Deployment manifest] *******************************"
-    _pause_line()
+    time.sleep(random.uniform(6.0, 8.0))
     yield f"  Image: ghcr.io/your-org/{app_id}:{version}"
-    time.sleep(random.uniform(3.5, 4.5))
+    time.sleep(random.uniform(2.0, 3.0))
     yield f"  deployment.apps/{app_id} configured"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield "changed: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Apply Service
     yield "TASK [Apply Service manifest] **********************************"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"  service/{app_id} configured"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "changed: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Apply Route
     yield "TASK [Apply OpenShift Route] ***********************************"
-    _pause_line()
+    time.sleep(random.uniform(4.0, 5.0))
     yield f"  Route host: {app_id}.apps.ocp.azure.example.com"
-    _pause_line()
+    time.sleep(random.uniform(2.0, 3.0))
     yield f"  route.route.openshift.io/{app_id} configured"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "changed: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Wait for rollout (slow)
     yield "TASK [Wait for deployment rollout] *****************************"
-    _pause_line()
-    yield "  Waiting for pods to become ready..."
-    time.sleep(random.uniform(4.0, 5.0))
-    yield "  Pod status: ContainerCreating"
     time.sleep(random.uniform(3.0, 4.0))
+    yield "  Waiting for pods to become ready..."
+    time.sleep(random.uniform(15.0, 20.0))
+    yield "  Pod status: ContainerCreating"
+    time.sleep(random.uniform(2.0, 3.0))
     pod_suffix = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=5))
     yield f"  Pod {app_id}-7d9f8b-{pod_suffix} → Running"
-    time.sleep(random.uniform(0.8, 1.2))
+    time.sleep(random.uniform(2.0, 3.0))
     yield "  readyReplicas: 1"
-    time.sleep(random.uniform(0.4, 0.6))
+    time.sleep(random.uniform(1.0, 2.0))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Smoke test
     yield "TASK [Smoke test — GET /health] ********************************"
-    _pause_line()
+    time.sleep(random.uniform(4.0, 5.0))
     yield f"  GET https://{app_id}.apps.ocp.azure.example.com/health"
-    time.sleep(random.uniform(1.5, 2.5))
+    time.sleep(random.uniform(2.0, 3.0))
     yield "  HTTP 200 OK"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Report URL
     yield "TASK [Report deployed URL] *************************************"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield "ok: [localhost] => {"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield f'  "msg": "DEPLOYED_URL: {deployed_url}"'
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "}"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Play recap
     yield "PLAY RECAP *****************************************************"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "localhost   : ok=10  changed=5  unreachable=0  failed=0"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield f"DEPLOYED_URL: {deployed_url}"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
 
-    yield {'status': 'done', 'url': deployed_url}
+    yield {'status': 'done', 'url': deployed_url, 'uses_argocd': False}
 
 
 def _simulate_aks_deployment(app_id: str, version: str, namespace: str):
-    """Simulate AKS deployment via az CLI + Helm"""
+    """Simulate AKS deployment via az CLI + Helm + ArgoCD"""
     deployed_url = f"https://{app_id}.aks.azure.example.com"
+    argocd_url = f"https://localhost:8080/applications/{app_id}"
+    image_tag_short = version[:8] if len(version) > 8 else version
 
     # PLAY header
     yield f"PLAY [Deploy {app_id} to AKS namespace {namespace}] ************"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Gathering Facts
     yield "TASK [Gathering Facts] *****************************************"
-    time.sleep(random.uniform(3.5, 4.5))
+    time.sleep(random.uniform(6.0, 8.0))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Azure CLI login (slow)
     yield "TASK [Azure CLI login — service principal] *********************"
-    _pause_line()
+    time.sleep(random.uniform(8.0, 12.0))
     yield "  Authenticating with Azure..."
-    time.sleep(random.uniform(4.5, 5.5))
+    time.sleep(random.uniform(5.0, 7.0))
     yield "  [WARNING]: Do not store credentials in source control"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield "  Login successful. Tenant: 75d69b80-844c-4077-b28a-cf2b59cc5187"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # AKS credentials (slow)
     yield "TASK [Fetch AKS credentials] ***********************************"
-    _pause_line()
+    time.sleep(random.uniform(6.0, 8.0))
     yield "  az aks get-credentials --name nttdata-aks-poc --resource-group nttdata-rg"
-    time.sleep(random.uniform(3.5, 4.5))
-    yield "  Merged \"nttdata-aks-poc\" as current context in ~/.kube/config"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
+    yield '  Merged "nttdata-aks-poc" as current context in ~/.kube/config'
+    time.sleep(random.uniform(2.0, 3.0))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Namespace
     yield "TASK [Ensure namespace exists] *********************************"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"  namespace/{namespace} created"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"changed: [localhost] => namespace '{namespace}' created"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Key Vault fetch (slow)
     yield "TASK [Fetch secret from Azure Key Vault] ***********************"
-    _pause_line()
+    time.sleep(random.uniform(6.0, 8.0))
     yield f"  Reading secret '{app_id}-secret' from Key Vault..."
-    time.sleep(random.uniform(2.5, 3.5))
+    time.sleep(random.uniform(4.0, 5.0))
     yield "  Secret retrieved successfully"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Create Secret
     yield "TASK [Create Kubernetes Secret] ********************************"
-    _pause_line()
+    time.sleep(random.uniform(3.0, 4.0))
     yield f"  secret/{app_id}-secret created"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "changed: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Helm upgrade (slow)
     yield "TASK [Helm upgrade --install] **********************************"
-    _pause_line()
+    time.sleep(random.uniform(4.0, 5.0))
     yield f"  Release name:  {app_id}"
-    time.sleep(random.uniform(0.8, 1.2))
+    time.sleep(random.uniform(1.0, 1.5))
     yield "  Chart:         helm/app-chart"
-    time.sleep(random.uniform(0.8, 1.2))
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"  Namespace:     {namespace}"
-    time.sleep(random.uniform(0.8, 1.2))
+    time.sleep(random.uniform(1.0, 1.5))
     yield f"  Image:         ghcr.io/your-org/{app_id}:{version}"
-    time.sleep(random.uniform(0.8, 1.2))
+    time.sleep(random.uniform(1.0, 1.5))
     yield "  "
     yield "  Upgrading release..."
-    time.sleep(random.uniform(4.0, 5.0))
+    time.sleep(random.uniform(15.0, 20.0))
     yield "  Creating deployment..."
     time.sleep(random.uniform(2.0, 3.0))
     yield f"  Release '{app_id}' has been upgraded. Happy Helming!"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 2.0))
     yield "changed: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Wait for rollout (slow)
     yield "TASK [Wait for deployment rollout] *****************************"
-    _pause_line()
-    yield "  Waiting for pods to become ready..."
     time.sleep(random.uniform(4.0, 5.0))
+    yield "  Waiting for pods to become ready..."
+    time.sleep(random.uniform(15.0, 20.0))
     yield "  Pod status: ContainerCreating"
-    time.sleep(random.uniform(3.0, 4.0))
+    time.sleep(random.uniform(2.0, 3.0))
     pod_suffix = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=5))
     yield f"  Pod {app_id}-6cf9d-{pod_suffix} → Running"
-    time.sleep(random.uniform(0.8, 1.2))
+    time.sleep(random.uniform(2.0, 3.0))
     yield "  readyReplicas: 1"
-    time.sleep(random.uniform(0.4, 0.6))
+    time.sleep(random.uniform(1.0, 2.0))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
+
+    # ArgoCD sync
+    yield "TASK [Trigger ArgoCD application sync] *************************"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield f"  ArgoCD App:  {app_id}"
+    time.sleep(random.uniform(2.0, 3.0))
+    yield f"  Namespace:   {namespace}"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "  Syncing application..."
+    time.sleep(random.uniform(5.0, 7.0))
+    yield "  Sync Status: Synced"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "  Health:      Healthy"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield f"  Revision:    {image_tag_short}"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "changed: [localhost]"
+    time.sleep(random.uniform(0.4, 0.7))
+    yield ""
+    time.sleep(random.uniform(0.4, 0.7))
+
+    # Verify ArgoCD health
+    yield "TASK [Verify ArgoCD application health] ************************"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "  Checking ArgoCD app health..."
+    time.sleep(random.uniform(3.0, 4.0))
+    yield f"  Application '{app_id}' is Healthy"
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "ok: [localhost]"
+    time.sleep(random.uniform(0.4, 0.7))
+    yield ""
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Smoke test
     yield "TASK [Smoke test — GET /health] ********************************"
-    _pause_line()
+    time.sleep(random.uniform(4.0, 5.0))
     yield f"  GET https://{app_id}.aks.azure.example.com/health"
-    time.sleep(random.uniform(1.5, 2.5))
+    time.sleep(random.uniform(2.0, 3.0))
     yield "  HTTP 200 OK"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield "ok: [localhost]"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Report URL
     yield "TASK [Report deployed URL] *************************************"
-    _pause_line()
+    time.sleep(random.uniform(1.0, 1.5))
     yield "ok: [localhost] => {"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
+    yield f'  "msg": "ARGOCD_URL: {argocd_url}"'
+    time.sleep(random.uniform(0.8, 1.2))
     yield f'  "msg": "DEPLOYED_URL: {deployed_url}"'
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
     yield "}"
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
 
     # Play recap
     yield "PLAY RECAP *****************************************************"
-    _pause_line()
-    yield "localhost   : ok=10  changed=5  unreachable=0  failed=0"
-    _pause_empty()
+    time.sleep(random.uniform(0.8, 1.2))
+    yield "localhost   : ok=12  changed=6  unreachable=0  failed=0"
+    time.sleep(random.uniform(0.4, 0.7))
     yield ""
-    _pause_empty()
+    time.sleep(random.uniform(0.4, 0.7))
+    yield f"ARGOCD_URL: {argocd_url}"
+    time.sleep(random.uniform(0.8, 1.2))
     yield f"DEPLOYED_URL: {deployed_url}"
-    _pause_line()
+    time.sleep(random.uniform(0.8, 1.2))
 
-    yield {'status': 'done', 'url': deployed_url}
+    yield {
+        'status': 'done',
+        'url': deployed_url,
+        'argocd_url': argocd_url,
+        'uses_argocd': True
+    }

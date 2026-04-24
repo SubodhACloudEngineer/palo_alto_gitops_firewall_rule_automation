@@ -101,6 +101,8 @@
                 <span id="awx-started-at" style="color: #333;">—</span>
                 <span style="color: #666;">AWX Console:</span>
                 <a id="awx-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none;">🔗 View in AWX →</a>
+                <span id="argocd-row-label" style="color: #666; display: none;">ArgoCD Console:</span>
+                <a id="argocd-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none; display: none;">🔗 View in ArgoCD →</a>
             </div>
         </div>
 
@@ -161,6 +163,8 @@ document.addEventListener('DOMContentLoaded', function() {
     var eventSource = null;
     var deployStartTime = null;
     var awxStatusTimeouts = [];
+    var usesArgocd = false;
+    var argocdUrl = null;
 
     // DOM Elements
     var form = document.getElementById('deploy-form');
@@ -430,6 +434,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 setAwxStatus('RUNNING');
             }
 
+            // Handle ArgoCD for AKS deployments
+            usesArgocd = data.uses_argocd || false;
+            argocdUrl = data.argocd_url || null;
+            if (usesArgocd && argocdUrl) {
+                document.getElementById('argocd-row-label').style.display = 'block';
+                document.getElementById('argocd-console-link').style.display = 'block';
+                document.getElementById('argocd-console-link').href = argocdUrl;
+            }
+
             // Open SSE connection
             eventSource = new EventSource('/deploy/status/' + currentJobId);
 
@@ -439,13 +452,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (eventData.status) {
                         // Final event
                         var appDisplayName = appSelect.options[appSelect.selectedIndex].textContent.trim();
+
+                        // Update ArgoCD URL if present in final event
+                        if (eventData.argocd_url) {
+                            argocdUrl = eventData.argocd_url;
+                            usesArgocd = eventData.uses_argocd || true;
+                            document.getElementById('argocd-row-label').style.display = 'block';
+                            document.getElementById('argocd-console-link').style.display = 'block';
+                            document.getElementById('argocd-console-link').href = argocdUrl;
+                        }
+
                         if (eventData.status === 'done') {
                             setStatus('DONE');
                             setAwxStatus('DONE');
                             // Update started_at to show elapsed time
                             var elapsed = (new Date() - deployStartTime) / 1000;
                             document.getElementById('awx-started-at').textContent = formatElapsed(elapsed);
-                            showResultBanner('success', eventData.url, appDisplayName, version, selectedTarget);
+                            showResultBanner('success', eventData.url, appDisplayName, version, selectedTarget, argocdUrl);
                         } else {
                             setStatus('FAILED');
                             setAwxStatus('FAILED');
@@ -515,11 +538,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Helper: Show result banner
-    function showResultBanner(type, url, appName, version, target) {
+    function showResultBanner(type, url, appName, version, target, argocdLink) {
         resultBanner.style.display = 'block';
         var resultTitle = document.getElementById('result-title');
         var resultDetails = document.getElementById('result-details');
         var resultLink = document.getElementById('result-link');
+
+        // Remove existing ArgoCD link if present
+        var existingArgoLink = document.getElementById('result-argocd-link');
+        if (existingArgoLink) {
+            existingArgoLink.remove();
+        }
 
         if (type === 'success') {
             resultBanner.style.backgroundColor = '#E8F5E9';
@@ -533,6 +562,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultLink.textContent = '🔗 Open Application → ' + url;
             } else {
                 resultLink.style.display = 'none';
+            }
+
+            // Add ArgoCD link for AKS deployments
+            if (argocdLink && usesArgocd) {
+                var argoLink = document.createElement('a');
+                argoLink.id = 'result-argocd-link';
+                argoLink.href = argocdLink;
+                argoLink.target = '_blank';
+                argoLink.style.display = 'block';
+                argoLink.style.marginTop = '8px';
+                argoLink.style.color = '#0067B1';
+                argoLink.style.fontWeight = '500';
+                argoLink.textContent = '🔗 View ArgoCD Sync → ' + argocdLink;
+                resultLink.parentNode.insertBefore(argoLink, resultLink.nextSibling);
             }
         } else {
             resultBanner.style.backgroundColor = '#FFEBEE';
@@ -572,6 +615,17 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('awx-started-at').textContent = '—';
         document.getElementById('awx-console-link').href = '#';
 
+        // Hide ArgoCD row
+        document.getElementById('argocd-row-label').style.display = 'none';
+        document.getElementById('argocd-console-link').style.display = 'none';
+        document.getElementById('argocd-console-link').href = '#';
+
+        // Remove ArgoCD link from result banner if present
+        var existingArgoLink = document.getElementById('result-argocd-link');
+        if (existingArgoLink) {
+            existingArgoLink.remove();
+        }
+
         // Clear log
         logBox.innerHTML = '';
         jobIdDisplay.textContent = '—';
@@ -597,6 +651,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear state
         currentJobId = null;
         deployStartTime = null;
+        usesArgocd = false;
+        argocdUrl = null;
         if (eventSource) {
             eventSource.close();
             eventSource = null;

@@ -181,6 +181,7 @@ When `DEMO_MODE=true` in `.env`, the deployment portal simulates realistic deplo
 **Configuration:**
 ```
 DEMO_MODE=true
+AWX_BASE_URL=http://172.20.47.61:30080
 ```
 
 **Behavior:**
@@ -189,24 +190,32 @@ DEMO_MODE=true
 - `GET /deploy/awx-status/<job_id>` returns simulated job status progression (pending → waiting → running → successful)
 - All three targets (VM, OpenShift, AKS) have unique, authentic-looking log sequences
 - Final `DEPLOYED_URL` is generated based on target type
+- AKS deployments include ArgoCD sync simulation with `ARGOCD_URL` output
 - No "DEMO" or "SIMULATION" labels appear anywhere — output looks completely real
 
-**Realistic Timing:**
-- VM deployments: ~90-120 seconds total
-- OpenShift deployments: ~100-130 seconds total
-- AKS deployments: ~110-140 seconds total
-- Individual operations have realistic delays (e.g., git clone 6s, pip install 8s, pod rollout 8s)
+**Realistic Timing (~3 minutes per deployment):**
+- VM deployments: ~170-200 seconds total
+- OpenShift deployments: ~175-210 seconds total
+- AKS deployments: ~180-220 seconds total
+- All sleep values use `random.uniform()` for natural variation
 
 **AWX Job Panel:**
 The deploy UI shows an AWX Job Details panel with:
 - Job ID and template name
 - Launched by user and timestamp
-- AWX console link (simulated)
+- AWX console link (configurable via `AWX_BASE_URL`)
+- ArgoCD console link (AKS deployments only)
 - Status badge with progression: PENDING (0-5s) → WAITING (5-10s) → RUNNING (10s+) → DONE/FAILED
+
+**ArgoCD Integration (AKS only):**
+- AKS deployments simulate ArgoCD application sync after Helm upgrade
+- `simulate_awx_job()` returns `uses_argocd: true` and `argocd_url` for AKS
+- UI shows ArgoCD Console link in AWX Job Details panel
+- Result banner includes both application URL and ArgoCD sync link
 
 **Simulator Functions (`demo_simulator.py`):**
 - `simulate_deployment(app_id, version, target, vm_host, namespace)` — Generator yielding log lines with realistic timing
-- `simulate_awx_job(app_id, target)` — Returns fake AWX job object with job_id, template name, timestamps, AWX URL
+- `simulate_awx_job(app_id, target, awx_base_url)` — Returns fake AWX job object with job_id, template name, timestamps, AWX URL, and ArgoCD info for AKS
 - `get_simulated_job_status(elapsed_seconds, target)` — Returns status based on elapsed time
 
 **Use cases:**
@@ -460,3 +469,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | App selector & GitHub tags | Added `apps.json` config, app dropdown selector, auto-fetch latest GitHub release tag, `get_latest_github_tag()` in awx_client.py, `/deploy/app-info/<app_id>` route |
 | Demo mode | Added `DEMO_MODE` flag and `demo_simulator.py` — simulates realistic AWX deployments without external calls for demos/testing |
 | Demo mode v2 | Slower realistic timing (VM ~90-120s, OpenShift ~100-130s, AKS ~110-140s); AWX Job Details panel with status progression (pending→waiting→running→done); new `simulate_awx_job()`, `get_simulated_job_status()` functions; new `/deploy/awx-status/<job_id>` endpoint |
+| Demo mode v3 | (1) AWX URL configurable via `AWX_BASE_URL` env var (default: `http://172.20.47.61:30080`); (2) Extended timing to ~3 minutes (VM ~170-200s, OpenShift ~175-210s, AKS ~180-220s) with `random.uniform()` for all sleeps; (3) AKS deployments now simulate ArgoCD sync with ArgoCD Console link in AWX panel and result banner |
