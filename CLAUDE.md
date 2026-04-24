@@ -192,12 +192,14 @@ APP_PROXY_TARGET=http://127.0.0.1:5001
 - All three targets (VM, OpenShift, AKS) have unique, authentic-looking log sequences
 - Final `DEPLOYED_URL` is generated based on target type
 - AKS deployments include ArgoCD sync simulation with `ARGOCD_URL` output
+- For AKS + `DEMO_MODE=true`, POST `/deploy` also triggers background kubectl commands (`get pods`, `apply`, `get applications`) without blocking the API response
+- AKS log stream now uses kubectl + ArgoCD sync style output instead of AWX/Ansible task format
 - No "DEMO" or "SIMULATION" labels appear anywhere — output looks completely real
 
 **Realistic Timing (~3 minutes per deployment):**
 - VM deployments: ~170-200 seconds total
 - OpenShift deployments: ~175-210 seconds total
-- AKS deployments: ~180-220 seconds total
+- AKS deployments: ~60-90 seconds total
 - All sleep values use `random.uniform()` for natural variation
 
 **AWX Job Panel:**
@@ -490,5 +492,6 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Demo mode | Added `DEMO_MODE` flag and `demo_simulator.py` — simulates realistic AWX deployments without external calls for demos/testing |
 | Demo mode v2 | Slower realistic timing (VM ~90-120s, OpenShift ~100-130s, AKS ~110-140s); AWX Job Details panel with status progression (pending→waiting→running→done); new `simulate_awx_job()`, `get_simulated_job_status()` functions; new `/deploy/awx-status/<job_id>` endpoint |
 | Demo mode v3 | (1) AWX URL configurable via `AWX_BASE_URL` env var (default: `http://172.20.47.61:30080`); (2) Extended timing to ~3 minutes (VM ~170-200s, OpenShift ~175-210s, AKS ~180-220s) with `random.uniform()` for all sleeps; (3) AKS deployments now simulate ArgoCD sync with ArgoCD Console link in AWX panel and result banner |
+| Demo mode v4 (AKS) | AKS-only demo flow now runs background kubectl commands at deploy trigger, streams kubectl/ArgoCD-style sync logs (60-90s), hides AWX Console row for AKS in deploy panel, and prioritizes ArgoCD deployment metadata/linking in the UI |
 | Fake AWX page | Added `GET /awx/jobs/<job_id>/output` route and `templates/awx_job_output.html` — standalone page mimicking AWX Tower job output interface with dark theme, terminal output via SSE, ANSI colour simulation, elapsed timer, and job details sidebar |
 | App proxy | Added `/app-proxy/` reverse proxy route to proxy requests to demo app on `APP_PROXY_TARGET` (default `http://127.0.0.1:5001`); VM deployments now use `/app-proxy/` as DEPLOYED_URL so "Open Application" stays on portal domain |

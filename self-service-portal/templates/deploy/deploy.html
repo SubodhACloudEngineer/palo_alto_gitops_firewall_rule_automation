@@ -87,7 +87,7 @@
         <!-- AWX Job Panel (hidden initially) -->
         <div id="awx-job-panel" style="display: none; margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e0e0e0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="margin: 0; font-size: 16px; color: #333;">AWX Job Details</h3>
+                <h3 id="job-panel-title" style="margin: 0; font-size: 16px; color: #333;">AWX Job Details</h3>
                 <span id="awx-job-status" class="status status-pending" style="animation: pulse 1.5s infinite;">PENDING</span>
             </div>
             <div style="display: grid; grid-template-columns: 120px 1fr; gap: 8px 15px; font-size: 14px;">
@@ -99,10 +99,14 @@
                 <span id="awx-launched-by" style="color: #333;">—</span>
                 <span style="color: #666;">Started:</span>
                 <span id="awx-started-at" style="color: #333;">—</span>
-                <span style="color: #666;">AWX Console:</span>
-                <a id="awx-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none;">🔗 View in AWX →</a>
-                <span id="argocd-row-label" style="color: #666; display: none;">ArgoCD Console:</span>
-                <a id="argocd-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none; display: none;">🔗 View in ArgoCD →</a>
+                <div id="awx-console-row" style="display: contents;">
+                    <span style="color: #666;">AWX Console:</span>
+                    <a id="awx-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none;">🔗 View in AWX →</a>
+                </div>
+                <div id="argocd-row" style="display: none;">
+                    <span id="argocd-row-label" style="color: #666;">ArgoCD Console:</span>
+                    <a id="argocd-console-link" href="#" target="_blank" style="color: #0067B1; text-decoration: none;">🔗 View in ArgoCD →</a>
+                </div>
             </div>
         </div>
 
@@ -438,9 +442,16 @@ document.addEventListener('DOMContentLoaded', function() {
             usesArgocd = data.uses_argocd || false;
             argocdUrl = data.argocd_url || null;
             if (usesArgocd && argocdUrl) {
-                document.getElementById('argocd-row-label').style.display = 'block';
-                document.getElementById('argocd-console-link').style.display = 'block';
+                document.getElementById('job-panel-title').textContent = 'Deployment Details';
+                document.getElementById('awx-template-name').textContent = 'ArgoCD Sync  ·  aks_one';
+                document.getElementById('awx-launched-by').textContent = 'ArgoCD Image Updater';
+                document.getElementById('awx-console-row').style.display = 'none';
+                document.getElementById('argocd-row').style.display = 'contents';
                 document.getElementById('argocd-console-link').href = argocdUrl;
+            } else {
+                document.getElementById('job-panel-title').textContent = 'AWX Job Details';
+                document.getElementById('awx-console-row').style.display = 'contents';
+                document.getElementById('argocd-row').style.display = 'none';
             }
 
             // Open SSE connection
@@ -457,8 +468,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (eventData.argocd_url) {
                             argocdUrl = eventData.argocd_url;
                             usesArgocd = eventData.uses_argocd || true;
-                            document.getElementById('argocd-row-label').style.display = 'block';
-                            document.getElementById('argocd-console-link').style.display = 'block';
+                            document.getElementById('argocd-row').style.display = 'contents';
                             document.getElementById('argocd-console-link').href = argocdUrl;
                         }
 
@@ -517,6 +527,60 @@ document.addEventListener('DOMContentLoaded', function() {
         var line = document.createElement('div');
         line.textContent = text;
         line.style.marginBottom = '2px';
+
+        // Existing Ansible/AWX style rules
+        if (text.startsWith('PLAY ') || text.startsWith('PLAY RECAP')) {
+            line.style.color = '#5bc0de';
+            line.style.fontWeight = '600';
+        } else if (text.startsWith('TASK [')) {
+            line.style.color = '#f0ad4e';
+            line.style.fontWeight = '600';
+        } else if (text.startsWith('ok:')) {
+            line.style.color = '#5cb85c';
+        } else if (text.startsWith('changed:')) {
+            line.style.color = '#5bc0de';
+        } else if (text.startsWith('ERROR:') || text.includes(' failed') || text.includes('[ERROR]')) {
+            line.style.color = '#d9534f';
+            line.style.fontWeight = '600';
+        }
+
+        // ArgoCD + kubectl style rules
+        if (text.startsWith('$')) {
+            line.style.color = '#f0ad4e';
+        } else if (text.startsWith('━')) {
+            line.style.color = '#5bc0de';
+        } else if (text.startsWith('ArgoCD')) {
+            line.style.color = '#ffffff';
+            line.style.fontWeight = '700';
+        } else if (text.startsWith('  ·')) {
+            line.style.color = '#5cb85c';
+        } else if (text.includes('ARGOCD_URL')) {
+            line.style.color = '#5bc0de';
+            line.style.fontWeight = '700';
+        } else if (text.includes('DEPLOYED_URL')) {
+            line.style.color = '#5cb85c';
+            line.style.fontWeight = '700';
+        } else if (text.startsWith('NAME ')) {
+            line.style.color = '#aaaaaa';
+        } else if (
+            text.startsWith('Application:') ||
+            text.startsWith('Destination:') ||
+            text.startsWith('Sync Policy:') ||
+            text.startsWith('Revision:') ||
+            text.startsWith('Image:') ||
+            text.startsWith('Pods Ready:') ||
+            text.startsWith('Sync Status:') ||
+            text.startsWith('Health Status:')
+        ) {
+            line.style.color = '#cccccc';
+        } else if (text.includes('OutOfSync')) {
+            line.style.color = '#d9534f';
+        } else if (text.includes('Pending') || text.includes('ContainerCreating')) {
+            line.style.color = '#f0ad4e';
+        } else if (text.includes('Synced') || text.includes('Healthy') || text.includes('Running')) {
+            line.style.color = '#5cb85c';
+        }
+
         logBox.appendChild(line);
         logBox.scrollTop = logBox.scrollHeight;
     }
@@ -614,15 +678,16 @@ document.addEventListener('DOMContentLoaded', function() {
         resetBtn.style.display = 'none';
 
         // Clear AWX panel
+        document.getElementById('job-panel-title').textContent = 'AWX Job Details';
         document.getElementById('awx-job-id').textContent = '#—';
         document.getElementById('awx-template-name').textContent = '—';
         document.getElementById('awx-launched-by').textContent = '—';
         document.getElementById('awx-started-at').textContent = '—';
         document.getElementById('awx-console-link').href = '#';
+        document.getElementById('awx-console-row').style.display = 'contents';
 
         // Hide ArgoCD row
-        document.getElementById('argocd-row-label').style.display = 'none';
-        document.getElementById('argocd-console-link').style.display = 'none';
+        document.getElementById('argocd-row').style.display = 'none';
         document.getElementById('argocd-console-link').href = '#';
 
         // Remove ArgoCD link from result banner if present
