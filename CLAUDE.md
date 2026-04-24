@@ -203,9 +203,20 @@ AWX_BASE_URL=http://172.20.47.61:30080
 The deploy UI shows an AWX Job Details panel with:
 - Job ID and template name
 - Launched by user and timestamp
-- AWX console link (configurable via `AWX_BASE_URL`)
+- AWX console link → opens fake AWX job output page (`/awx/jobs/<job_id>/output`)
 - ArgoCD console link (AKS deployments only)
 - Status badge with progression: PENDING (0-5s) → WAITING (5-10s) → RUNNING (10s+) → DONE/FAILED
+
+**Fake AWX Job Output Page:**
+`GET /awx/jobs/<job_id>/output` renders a standalone page (`templates/awx_job_output.html`) that mimics the real AWX Tower job output interface:
+- Dark navy theme matching AWX Tower (#1b1b21 background)
+- Top navbar with "Ansible AWX" logo and version
+- Status bar showing job status, elapsed timer, template, launched by
+- Two-column layout: terminal output (70%) + details sidebar (30%)
+- Terminal streams logs via SSE from `/deploy/status/<job_id>` (same endpoint as portal)
+- ANSI colour simulation for Ansible output (green for ok, amber for changed, blue for TASK, etc.)
+- Details sidebar shows job metadata and extra variables as JSON
+- "Back to Portal" button links to `/deploy`
 
 **ArgoCD Integration (AKS only):**
 - AKS deployments simulate ArgoCD application sync after Helm upgrade
@@ -215,7 +226,7 @@ The deploy UI shows an AWX Job Details panel with:
 
 **Simulator Functions (`demo_simulator.py`):**
 - `simulate_deployment(app_id, version, target, vm_host, namespace)` — Generator yielding log lines with realistic timing
-- `simulate_awx_job(app_id, target, awx_base_url)` — Returns fake AWX job object with job_id, template name, timestamps, AWX URL, and ArgoCD info for AKS
+- `simulate_awx_job(app_id, target, awx_base_url)` — Returns fake AWX job object with job_id, template name, AWX URL (`/awx/jobs/<job_id>/output`), and ArgoCD info for AKS
 - `get_simulated_job_status(elapsed_seconds, target)` — Returns status based on elapsed time
 
 **Use cases:**
@@ -470,3 +481,4 @@ Rules live in `firewall-rules/*.json`. Required fields per `schemas/firewall-rul
 | Demo mode | Added `DEMO_MODE` flag and `demo_simulator.py` — simulates realistic AWX deployments without external calls for demos/testing |
 | Demo mode v2 | Slower realistic timing (VM ~90-120s, OpenShift ~100-130s, AKS ~110-140s); AWX Job Details panel with status progression (pending→waiting→running→done); new `simulate_awx_job()`, `get_simulated_job_status()` functions; new `/deploy/awx-status/<job_id>` endpoint |
 | Demo mode v3 | (1) AWX URL configurable via `AWX_BASE_URL` env var (default: `http://172.20.47.61:30080`); (2) Extended timing to ~3 minutes (VM ~170-200s, OpenShift ~175-210s, AKS ~180-220s) with `random.uniform()` for all sleeps; (3) AKS deployments now simulate ArgoCD sync with ArgoCD Console link in AWX panel and result banner |
+| Fake AWX page | Added `GET /awx/jobs/<job_id>/output` route and `templates/awx_job_output.html` — standalone page mimicking AWX Tower job output interface with dark theme, terminal output via SSE, ANSI colour simulation, elapsed timer, and job details sidebar |

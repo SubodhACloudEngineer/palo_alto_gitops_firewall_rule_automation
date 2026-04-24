@@ -1658,6 +1658,27 @@ def deploy_awx_status(job_id):
     })
 
 
+@app.route('/awx/jobs/<job_id>/output')
+def awx_job_output(job_id):
+    """Render fake AWX job output page"""
+    if job_id not in deploy_jobs:
+        return "Job not found", 404
+
+    job = deploy_jobs[job_id]
+    awx_job = job.get('awx_job', {})
+
+    return render_template('awx_job_output.html',
+        job_id=job_id,
+        app_name=job.get('app_name', ''),
+        version=job.get('version', ''),
+        target=job.get('target', ''),
+        template_name=awx_job.get('job_template_name', f"Deploy-App-{job.get('target', 'VM').upper()}"),
+        launched_by='nttdata-portal',
+        started_at=job.get('started_at', ''),
+        status=job.get('status', 'running')
+    )
+
+
 # ============================================
 # MAIN
 # ============================================
