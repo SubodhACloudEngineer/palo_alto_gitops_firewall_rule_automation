@@ -56,7 +56,7 @@ def simulate_awx_job(app_id: str, target: str, awx_base_url: str) -> dict:
             "app_name":  app_id,
             "target":    target
         },
-        "awx_url": f"{awx_base_url}/#/jobs/playbook/{job_id}/output"
+        "awx_url": f"/awx/jobs/{job_id}/output"
     }
 
     if target == "aks":

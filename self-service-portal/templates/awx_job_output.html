@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWX | Jobs > #{{ job_id }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1b1b21;
+            color: #f0f0f0;
+            min-height: 100vh;
+        }
+
+        /* Top Navbar */
+        .navbar {
+            height: 56px;
+            background: #1b1b21;
+            border-bottom: 1px solid #3a3a4a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .navbar-logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .navbar-logo span {
+            color: #e74c3c;
+        }
+
+        .navbar-version {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .navbar-right svg {
+            width: 20px;
+            height: 20px;
+            fill: #ccc;
+        }
+
+        /* Page Title */
+        .page-title {
+            background: #1b1b21;
+            padding: 16px 24px;
+            border-bottom: 1px solid #3a3a4a;
+        }
+
+        .page-title h1 {
+            font-size: 20px;
+            font-weight: 500;
+            color: #fff;
+        }
+
+        .page-title h1 a {
+            color: #5bc0de;
+            text-decoration: none;
+        }
+
+        .page-title h1 a:hover {
+            text-decoration: underline;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background: #1f1f28;
+            padding: 12px 24px;
+            display: flex;
+            gap: 32px;
+            border-bottom: 1px solid #3a3a4a;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .status-item .label {
+            color: #888;
+        }
+
+        .status-item .value {
+            color: #fff;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #5cb85c;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        .status-dot.failed {
+            background: #d9534f;
+            animation: none;
+        }
+
+        .status-dot.successful {
+            background: #5cb85c;
+            animation: none;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Main Content */
+        .main-content {
+            display: flex;
+            height: calc(100vh - 56px - 53px - 45px);
+        }
+
+        /* Left Column - Terminal */
+        .terminal-section {
+            flex: 70%;
+            display: flex;
+            flex-direction: column;
+            background: #0d0d0d;
+        }
+
+        .terminal-tabs {
+            display: flex;
+            background: #1b1b21;
+            border-bottom: 1px solid #3a3a4a;
+        }
+
+        .terminal-tab {
+            padding: 12px 20px;
+            font-size: 14px;
+            color: #888;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .terminal-tab.active {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+
+        .terminal-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .terminal-output .line {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .terminal-output .line-ok {
+            color: #5cb85c;
+        }
+
+        .terminal-output .line-changed {
+            color: #f0ad4e;
+        }
+
+        .terminal-output .line-task {
+            color: #5bc0de;
+            font-weight: bold;
+        }
+
+        .terminal-output .line-play {
+            color: #ffffff;
+            font-weight: bold;
+            background: #2a2a3a;
+            padding: 2px 4px;
+            display: inline-block;
+            margin: 4px 0;
+        }
+
+        .terminal-output .line-failed {
+            color: #d9534f;
+        }
+
+        .terminal-output .line-url {
+            color: #5cb85c;
+            font-weight: bold;
+        }
+
+        .terminal-output .line-default {
+            color: #cccccc;
+        }
+
+        /* Right Column - Details Sidebar */
+        .details-sidebar {
+            flex: 30%;
+            background: #16161e;
+            border-left: 1px solid #3a3a4a;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .details-sidebar h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-item {
+            margin-bottom: 16px;
+        }
+
+        .detail-item .label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .detail-item .value {
+            font-size: 14px;
+            color: #fff;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.running {
+            background: #5cb85c;
+            color: #fff;
+        }
+
+        .status-badge.successful {
+            background: #5cb85c;
+            color: #fff;
+        }
+
+        .status-badge.failed {
+            background: #d9534f;
+            color: #fff;
+        }
+
+        .status-badge.pending {
+            background: #888;
+            color: #fff;
+        }
+
+        .extra-vars {
+            background: #0d0d0d;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            color: #f0ad4e;
+            overflow-x: auto;
+            white-space: pre;
+        }
+
+        .back-button {
+            display: inline-block;
+            margin-top: 24px;
+            padding: 8px 16px;
+            background: #3a3a4a;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .back-button:hover {
+            background: #4a4a5a;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1b1b21;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3a3a4a;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a4a5a;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navbar -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <div class="navbar-logo">Ansible <span>AWX</span></div>
+            <div class="navbar-version">21.9.0</div>
+        </div>
+        <div class="navbar-right">
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span>admin</span>
+        </div>
+    </nav>
+
+    <!-- Page Title -->
+    <div class="page-title">
+        <h1><a href="#">Jobs</a> > #{{ job_id }} - {{ template_name }}</h1>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="label">Status:</span>
+            <span id="status-dot" class="status-dot"></span>
+            <span id="status-text" class="value">Running</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Started:</span>
+            <span class="value" id="started-display">{{ started_at }}</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Elapsed:</span>
+            <span class="value" id="elapsed-timer">00:00</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Template:</span>
+            <span class="value">{{ template_name }}</span>
+        </div>
+        <div class="status-item">
+            <span class="label">Launched by:</span>
+            <span class="value">{{ launched_by }}</span>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Terminal Section -->
+        <div class="terminal-section">
+            <div class="terminal-tabs">
+                <div class="terminal-tab active">Output</div>
+                <div class="terminal-tab">Details</div>
+            </div>
+            <div class="terminal-output" id="terminal-output">
+                <!-- Log lines will be appended here -->
+            </div>
+        </div>
+
+        <!-- Details Sidebar -->
+        <div class="details-sidebar">
+            <h3>Job Details</h3>
+
+            <div class="detail-item">
+                <div class="label">Job ID</div>
+                <div class="value">#{{ job_id }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Status</div>
+                <div class="value">
+                    <span id="status-badge" class="status-badge running">Running</span>
+                </div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Started</div>
+                <div class="value">{{ started_at }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Template</div>
+                <div class="value">{{ template_name }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Launched by</div>
+                <div class="value">{{ launched_by }}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Inventory</div>
+                <div class="value">{% if target == 'vm' %}on-prem-hosts{% else %}localhost{% endif %}</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Project</div>
+                <div class="value">nttdata-portal</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Playbook</div>
+                <div class="value">playbooks/deploy_{{ target }}.yml</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="label">Extra Variables</div>
+                <div class="extra-vars">{
+  "app_name": "{{ app_name }}",
+  "version": "{{ version }}",
+  "target": "{{ target }}"
+}</div>
+            </div>
+
+            <a href="/deploy" class="back-button">← Back to Portal</a>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var jobId = "{{ job_id }}";
+        var initialStatus = "{{ status }}";
+        var terminalOutput = document.getElementById('terminal-output');
+        var statusDot = document.getElementById('status-dot');
+        var statusText = document.getElementById('status-text');
+        var statusBadge = document.getElementById('status-badge');
+        var elapsedTimer = document.getElementById('elapsed-timer');
+        var startedDisplay = document.getElementById('started-display');
+
+        var elapsedSeconds = 0;
+        var timerInterval = null;
+        var eventSource = null;
+        var jobFinished = false;
+
+        function formatElapsed(seconds) {
+            var mins = Math.floor(seconds / 60);
+            var secs = seconds % 60;
+            return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        }
+
+        function formatStartedTime(isoString) {
+            if (!isoString) return '';
+            try {
+                var date = new Date(isoString);
+                return date.toLocaleString();
+            } catch (e) {
+                return isoString;
+            }
+        }
+
+        function classifyLine(text) {
+            if (text.startsWith('ok:')) return 'line-ok';
+            if (text.startsWith('changed:')) return 'line-changed';
+            if (text.startsWith('TASK [')) return 'line-task';
+            if (text.startsWith('PLAY [') || text.startsWith('PLAY RECAP')) return 'line-play';
+            if (text.toLowerCase().includes('failed')) return 'line-failed';
+            if (text.includes('DEPLOYED_URL') || text.includes('ARGOCD_URL')) return 'line-url';
+            return 'line-default';
+        }
+
+        function appendLogLine(text) {
+            var div = document.createElement('div');
+            div.className = 'line ' + classifyLine(text);
+            div.textContent = text;
+            terminalOutput.appendChild(div);
+            terminalOutput.scrollTop = terminalOutput.scrollHeight;
+        }
+
+        function setJobStatus(status) {
+            jobFinished = true;
+
+            if (status === 'done' || status === 'successful') {
+                statusDot.className = 'status-dot successful';
+                statusText.textContent = 'Successful';
+                statusBadge.className = 'status-badge successful';
+                statusBadge.textContent = 'Successful';
+            } else {
+                statusDot.className = 'status-dot failed';
+                statusText.textContent = 'Failed';
+                statusBadge.className = 'status-badge failed';
+                statusBadge.textContent = 'Failed';
+            }
+
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(function() {
+                elapsedSeconds++;
+                elapsedTimer.textContent = formatElapsed(elapsedSeconds);
+            }, 1000);
+        }
+
+        function startSSE() {
+            eventSource = new EventSource('/deploy/status/' + jobId);
+
+            eventSource.onmessage = function(e) {
+                try {
+                    var data = JSON.parse(e.data);
+                    if (data.status) {
+                        setJobStatus(data.status);
+                    } else if (data.error) {
+                        appendLogLine('[ERROR] ' + data.error);
+                    }
+                } catch (err) {
+                    appendLogLine(e.data);
+                }
+            };
+
+            eventSource.onerror = function() {
+                if (!jobFinished) {
+                    appendLogLine('[ERROR] Connection lost');
+                    setJobStatus('failed');
+                }
+            };
+        }
+
+        startedDisplay.textContent = formatStartedTime("{{ started_at }}");
+
+        if (initialStatus === 'done' || initialStatus === 'failed') {
+            setJobStatus(initialStatus);
+            appendLogLine('[Job already completed - status: ' + initialStatus + ']');
+        } else {
+            startTimer();
+            startSSE();
+        }
+    })();
+    </script>
+</body>
+</html>
